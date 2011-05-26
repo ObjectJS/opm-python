@@ -722,9 +722,9 @@ class Workspace():
         self.url_packages = {}
         self.local_packages = {}
         self.useless_packages = []
-        self.load()
+        self.init()
 
-    def load(self):
+    def init(self):
         if not os.path.exists(self.packages_file_path): return
 
         for package_path in open(self.packages_file_path, 'r'):
@@ -738,6 +738,15 @@ class Workspace():
                 package_url = package_config.getroot().get('url')
                 self.local_packages[local_path] = package_url
                 if package_url: self.url_packages[package_url] = local_path
+
+    def load(self):
+        for root, dirs, files in os.walk(self.root):
+            if StaticPackage.is_root(root):
+                dirs[:] = []
+                if not self.has_package(root):
+                    self.add_package(root)
+
+        self.rebuild_package()
 
     def get_package_by_url(self, url):
         local_path = self.url_packages.get(url)
@@ -773,7 +782,7 @@ class Workspace():
         u''' 源库所在工作区 '''
 
         while True:
-            if os.path.exists(os.path.join(workspace_path, PACKAGES_FILENAME)):
+            if Workspace.is_root(workspace_path):
                 return workspace_path
             else:
                 newpath = os.path.realpath(os.path.join(workspace_path, '../'))
@@ -781,6 +790,11 @@ class Workspace():
                 else: workspace_path = newpath
 
         return None
+
+    @staticmethod
+    def is_root(path):
+        u''' path是否是一个工作区的根路径 '''
+        return os.path.exists(os.path.join(path, PACKAGES_FILENAME))
 
 if __name__ == '__main__':
     commands.main()

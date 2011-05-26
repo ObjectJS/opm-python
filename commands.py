@@ -130,19 +130,13 @@ def load(workspace_path):
         workspace_path = os.path.dirname(workspace_path)
 
     workspace = Workspace(workspace_path)
-    added_count = 0
-    for root, dirs, files in os.walk(workspace_path):
-        if StaticPackage.is_root(root):
-            dirs[:] = []
-            if not workspace.has_package(root):
-                workspace.add_package(root)
-                added_count = added_count + 1
+    old_count = len(workspace.local_packages)
+    workspace.load()
+    added_count = len(workspace.local_packages) - old_count
 
     if len(workspace.useless_packages):
         for package in workspace.useless_packages:
             ui.msg(u'删除无用package %s' % package)
-
-        workspace.rebuild_package()
 
     ui.msg(u'已加入 %s 个源库' % added_count)
 
@@ -270,7 +264,15 @@ def serve(workspace_path = None, fastcgi = False, port = 8080, debug = False):
 请指定工作区路径'''
 
     if workspace_path:
-        workspace = Workspace(os.path.realpath(workspace_path))
+        if Workspace.is_root(workspace_path):
+            workspace = Workspace(os.path.realpath(workspace_path))
+            old_count = len(workspace.local_packages)
+            workspace.load()
+            added_count = len(workspace.local_packages) - old_count
+            ui.msg(u'已加入%s个源库' % added_count)
+        else:
+            ui.error(u'工作区无效');
+            workspace = None
     else:
         workspace = None
 
