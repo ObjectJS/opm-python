@@ -254,26 +254,24 @@ def included(filename, all = False):
     for file in package.get_included(filename, all = all):
         print file
 
-@arg('workspace_path')
+@cwdarg
 @option('fastcgi', '--fastcgi', help = u'使用fastcgi进行serve', action = 'store_true')
 @option('port', '--port', help = u'指定端口号', type = 'int')
 @option('debug', '-d', '--debug', help = u'debug模式', action = 'store_true')
-def serve(workspace_path = None, fastcgi = False, port = 8080, debug = False):
+def serve(workspace_path, fastcgi = False, port = 8080, debug = False):
     u''' 启动一个静态服务器
 
 请指定工作区路径'''
 
-    if workspace_path:
-        if Workspace.is_root(workspace_path):
-            workspace = Workspace(os.path.realpath(workspace_path))
-            old_count = len(workspace.local_packages)
-            workspace.load()
-            added_count = len(workspace.local_packages) - old_count
-            ui.msg(u'已加入%s个源库' % added_count)
-        else:
-            ui.error(u'工作区无效');
-            workspace = None
+    if Workspace.is_root(workspace_path):
+        workspace = Workspace(os.path.realpath(workspace_path))
+        old_count = len(workspace.local_packages)
+        workspace.load()
+        added_count = len(workspace.local_packages) - old_count
+
+        ui.msg(u'已加入%s个源库' % added_count)
     else:
+        ui.error(u'工作区无效');
         workspace = None
 
     def print_request(environ, start_response):
