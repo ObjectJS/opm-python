@@ -5,7 +5,7 @@ import sys
 import ui
 import utils.commandline
 from utils.commandline import arg, cwdarg, option, usage
-from staticcompiler import StaticPackage, Workspace, PublishPackageException, NoPublishPathException, PackageNotFoundException
+from staticcompiler import StaticPackage, Workspace, PublishPackageException, NoPublishPathException, PackageNotFoundException, PackageExistsException
 
 @cwdarg
 @usage(u'scompiler workspace [源库路径]')
@@ -172,10 +172,37 @@ def init(root_path, publish_path = None, force = False):
 初始化一个新的库，建立template-config.xml配置文件及常用的目录，如果指定了 -p 参数，还可以自动建立与发布目录的连接'''
     ui.msg(u'初始化%s' % root_path)
     try:
+        print u'创建配置文件'
         StaticPackage.init(root_path)
+
     except PublishPackageException:
         ui.error(u'发布目录不能被初始化')
         return 1
+
+    except PackageExistsException:
+        ui.error(u'已经存在')
+        return 1
+
+    pathnames = ['test', 'doc', 'src', 'lib', 'res']
+    for name in pathnames:
+        path = os.path.join(root_path, name)
+        if not os.path.exists(path):
+            os.makedirs(path)
+            print u'生成默认目录', name
+
+    workspace_path = Workspace.get_workspace(root_path)
+    if not workspace_path:
+        print u'没有工作区，请参照 scompiler help load'
+    else:
+        workspace = Workspace(workspace_path)
+
+        if not workspace.has_package(root_path):
+            workspace.add_package(root_path)
+            print u'加入本地工作区'
+        else:
+            print u'本地工作区中已存在'
+
+    print u'成功！'
 
     if publish_path:
         link(root_path, publish_path, force = force)

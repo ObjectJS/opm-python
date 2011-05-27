@@ -49,6 +49,9 @@ class PublishPackageException(Exception):
 class NotPackageException(Exception):
     pass
 
+class PackageExistsException(Exception):
+    pass
+
 class NotInWorkspaceException(Exception):
     pass
 
@@ -205,26 +208,6 @@ class StaticPackage():
 
         return libs
 
-
-    def build_js(self, source, filename, force):
-        u''' 将源文件复制到发布目录 '''
-
-        # combineFiles 存储了本次合并生成的所有文件，在copy完毕后就可以删掉了
-        relationFiles, combineFiles = self.combine(source, force = force)
-
-        combineFiles = {}.fromkeys(combineFiles).keys()
-
-        targetDir = os.path.dirname(filename)
-        if not os.path.exists(targetDir): os.makedirs(targetDir)
-        try:
-            shutil.copy(source, filename)
-        except:
-            pass
-
-        # 执行删除合并后的文件
-        for file in combineFiles:
-            os.remove(file)
-
     def get_includes(self, source, all = False):
         if os.path.splitext(source)[1] == '.css':
             def pathTransformer(path):
@@ -272,6 +255,25 @@ class StaticPackage():
                 feed_files.extend(others)
 
             return feed_files
+
+    def build_js(self, source, filename, force):
+        u''' 将源文件复制到发布目录 '''
+
+        # combineFiles 存储了本次合并生成的所有文件，在copy完毕后就可以删掉了
+        relationFiles, combineFiles = self.combine(source, force = force)
+
+        combineFiles = {}.fromkeys(combineFiles).keys()
+
+        targetDir = os.path.dirname(filename)
+        if not os.path.exists(targetDir): os.makedirs(targetDir)
+        try:
+            shutil.copy(source, filename)
+        except:
+            pass
+
+        # 执行删除合并后的文件
+        for file in combineFiles:
+            os.remove(file)
 
     def build_css(self, source, target, mode, force):
         u''' 生成css文件 '''
@@ -419,26 +421,6 @@ class StaticPackage():
         cssfile.write(txt)
         cssfile.close()
 
-    def getPackageRoot(self, path):
-        ''' 不断的向上遍历文件路径，找到package的根目录 '''
-
-        while True:
-            # 通过找 source 的方式读取到地址
-            runtimeFilePath = os.path.join(path, SOURCE_FILENAME)
-            if os.path.exists(runtimeFilePath):
-                # 根据source文件即可知publish_path，不用通过template-config.xml生成
-                self.publish_path = os.path.realpath(path)
-                return os.path.realpath(open(runtimeFilePath, 'r').read().strip())
-
-            # 说明生成的文件同源文件处于同一目录树中，可直接找到配置文件
-            configFilePath = os.path.join(path, CONFIG_FILENAME)
-            if os.path.exists(configFilePath):
-                return os.path.realpath(path)
-
-            newpath = os.path.realpath(os.path.join(path, '../'))
-            if newpath == path: break # 已经到根目录了，停止循环
-            else: path = newpath
-
     def load_config(self):
         ''' 解析配置文件 '''
 
@@ -576,6 +558,7 @@ class StaticPackage():
 
     @staticmethod
     def init(root_path):
+        u''' 初始化一个目录为源库 '''
 
         root_path = os.path.realpath(root_path)
 
@@ -583,51 +566,21 @@ class StaticPackage():
         if StaticPackage.get_publish(root_path):
             raise PublishPackageException
 
-        # 处理source
         config_path = os.path.join(root_path, CONFIG_FILENAME)
 
         if os.path.exists(config_path):
-            print u'源库已存在'
-        else:
-            if not os.path.exists(root_path):
-                os.makedirs(root_path)
+            raise PackageExistsException
 
-            print u'创建配置文件', CONFIG_FILENAME
-            open(config_path, 'w').write(
-                '''<package>
-                <library dir="lib">
-                </library>
-                <source dir="src">
-                </source>
-                <resource dir="res">
-                </resource>
-                </package>'''
-            )
+        if not os.path.exists(root_path):
+            os.makedirs(root_path)
 
-            pathnames = ['test', 'doc', 'src', 'lib', 'res', 'src/modules']
-            for name in pathnames:
-                path = os.path.join(root_path, name)
-                if not os.path.exists(path):
-                    os.makedirs(path)
-                    print u'生成默认目录', name
-                    pass
-                pass
-
-        workspace_path = Workspace.get_workspace(root_path)
-        if not workspace_path:
-            print u'没有工作区，请参照 scompiler help load'
-        else:
-            workspace = Workspace(workspace_path)
-
-            if not workspace.has_package(root_path):
-                workspace.add_package(root_path)
-                print u'加入本地工作区'
-            else:
-                print u'本地工作区中已存在'
-
-        print u'成功！'
+        open(config_path, 'w').write(
+            '<package>\n\t<library dir="lib">\n\t</library>\n\t<source dir="src">\n\t</source>\n\t<resource dir="res">\n\t</resource>\n</package>'
+        )
 
     def link(self):
+        u''' 连接源库与发布库 '''
+
         if self.url:
             package_file_path = os.path.join(self.publish_path, PACKAGE_FILENAME)
             open(package_file_path, 'w').write(self.url)
