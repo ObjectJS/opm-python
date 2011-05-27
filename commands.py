@@ -234,24 +234,27 @@ def libs(root_path, show_url = False, all = False, reverse = False):
             ui.msg(local_path)
 
 @arg('filename')
-def includes(filename):
-    u''' 某文件所有依赖的文件 '''
-    filename = os.path.realpath(filename)
-    root_path = StaticPackage.get_root(filename)
-    package = StaticPackage(root_path)
-
-    for file in package.get_includes(filename):
-        print file
-
-@arg('filename')
 @option('all', '-a', '--all', help=u'递归显示所有', action='store_true')
-def included(filename, all = False):
-    u''' 所有引用了此文件的文件 '''
+@option('reverse', '-r', '--reverse', help=u'显示被依赖的', action='store_true')
+def incs(filename, all = False, reverse = False):
+    u''' 某文件所有依赖的文件 '''
+
     filename = os.path.realpath(filename)
     root_path = StaticPackage.get_root(filename)
     package = StaticPackage(root_path)
 
-    for file in package.get_included(filename, all = all):
+    filetype = os.path.splitext(filename)[1]
+
+    if reverse:
+        if filetype == '.css':
+            print 'Not support yet, sorry.'
+            return 1
+        else:
+            files = package.get_included(filename, all = all)
+    else:
+        files = package.get_includes(filename, all = all)
+
+    for file in files:
         print file
 
 @cwdarg
@@ -353,7 +356,7 @@ def serve(workspace_path, fastcgi = False, port = 8080, debug = False):
         ui.msg(u'现在还不支持server，请使用 scompiler serve --fastcgi 方式')
 
 def main():
-    commands = [init, compile, publish, link, load, serve, packages, workspace, root, source, libs, includes, included]
+    commands = [init, compile, publish, link, load, serve, packages, workspace, root, source, libs, incs]
     if len(sys.argv) < 2:
         ui.msg(u'使用 scompiler help 得到用法')
     else:

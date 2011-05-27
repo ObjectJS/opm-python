@@ -225,17 +225,19 @@ class StaticPackage():
         for file in combineFiles:
             os.remove(file)
 
-    def get_includes(self, source):
+    def get_includes(self, source, all = False):
         if os.path.splitext(source)[1] == '.css':
-            import csscompiler
-
             def pathTransformer(path):
                 return self.get_library_path(path)
 
-            imports, urls = csscompiler.getUrls(source, pathTransformer = pathTransformer, recursion = True, inAll = True)
-            return imports
+            imports, urls = csscompiler.getUrls(source, pathTransformer = pathTransformer, recursion = all, inAll = True)
+            return [os.path.realpath(os.path.join(os.path.dirname(source), imp)) for imp in imports]
+
         else:
-            return self.combine(source, fake = True)[0]
+            if all:
+                return self.combine(source, fake = True)[0]
+            else:
+                return self.combines[source]
 
     def get_combine_included(self, file):
         u''' 某个文件在当前库中被哪些文件引用了 '''
@@ -251,7 +253,7 @@ class StaticPackage():
 
     def get_included(self, source, all = False):
         if os.path.splitext(source)[1] == '.css':
-            pass
+            return []
         else:
             # 到workspace中找一圈
             feed_files = []

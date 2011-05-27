@@ -173,7 +173,8 @@ def getUrls(path, pathTransformer = lambda path: path, recursion = True, inAll =
                 if urls.count(value): continue
                 if flag == '@import':
                     imports.append(value)
-                    processFile(value, imports = imports, urls = urls)
+                    if recursion:
+                        processFile(value, imports = imports, urls = urls)
                 else:
                     urls.append(value)
 
@@ -186,7 +187,10 @@ def getUrls(path, pathTransformer = lambda path: path, recursion = True, inAll =
                 value = match.group(2)
                 flag = match.group(1)
                 if flag == '@import':
-                    imports.append(processFile(value))
+                    if recursion:
+                        imports.append(processFile(value))
+                    else:
+                        imports.append(value)
                 else:
                     urls.append(value)
 
