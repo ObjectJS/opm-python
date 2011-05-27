@@ -112,6 +112,25 @@ class StaticPackage():
 
         return package
 
+    def get_publish_files(self):
+        u''' 发布目录所有的css/js文件 '''
+
+        def get_files(dir_path):
+            paths = []
+            for root, dirs, files in os.walk(dir_path):
+                if '.svn' in root:
+                    dirs[:] = []
+                    continue
+                for file in files:
+                    path = os.path.join(root, file)
+                    if os.path.splitext(path)[1] in ('.css', '.js'):
+                        paths.append(path)
+
+            return paths
+
+        files = get_files(self.publish_path)
+        return files
+
     def combine(self, path, force = False, fake = False):
         u'''
         执行合并
@@ -213,8 +232,10 @@ class StaticPackage():
             def pathTransformer(path):
                 return self.get_library_path(path)
 
-            imports, urls = csscompiler.getUrls(source, pathTransformer = pathTransformer, recursion = all, inAll = True)
-            return [os.path.realpath(os.path.join(os.path.dirname(source), imp)) for imp in imports]
+            result = csscompiler.getUrls(source, pathTransformer = pathTransformer, recursion = all, inAll = True)
+            if result:
+                imports, urls = result
+                return [os.path.realpath(os.path.join(os.path.dirname(source), imp)) for imp in imports]
 
         else:
             if all:

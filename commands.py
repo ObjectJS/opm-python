@@ -87,19 +87,6 @@ def publish(path, publish_path = None, force = False):
     else:
         publish_path, root_path = StaticPackage.get_roots(path)
 
-    def get_files(dir_path):
-        paths = []
-        for root, dirs, files in os.walk(dir_path):
-            if '.svn' in root:
-                dirs[:] = []
-                continue
-            for file in files:
-                path = os.path.join(root, file)
-                if os.path.splitext(path)[1] in ('.css', '.js'):
-                    paths.append(path)
-
-        return paths
-
     if not publish_path:
         ui.msg(u'No publish path.')
     else:
@@ -108,7 +95,7 @@ def publish(path, publish_path = None, force = False):
             ui.msg(u'No publish path.')
         else:
             ui.msg(u'publish to %s from %s' % (path, package.root))
-            all_files = get_files(path)
+            all_files = package.get_publish_files()
             for file in all_files:
                 try:
                     package.compile(file, force = force)
@@ -221,6 +208,20 @@ def source(publish_path):
         StaticPackage.get_root(publish_path)
     else:
         ui.error(u'不是一个发布库')
+
+@cwdarg
+def status(publish_path):
+    u''' 编译状态 '''
+    publish_path, root_path = StaticPackage.get_roots(publish_path)
+    if not publish_path:
+        ui.error(u'不是发布库')
+        return 1
+
+    package = StaticPackage(root_path, publish_path)
+    files = package.get_publish_files()
+    for file in files:
+        source = package.parse(file)
+        package.get_includes(source)
 
 @cwdarg
 @usage(u'scompiler libs [源库路径]')
@@ -383,7 +384,7 @@ def serve(workspace_path, fastcgi = False, port = 8080, debug = False):
         ui.msg(u'现在还不支持server，请使用 scompiler serve --fastcgi 方式')
 
 def main():
-    commands = [init, compile, publish, link, load, serve, packages, workspace, root, source, libs, incs]
+    commands = [init, compile, publish, link, load, serve, packages, workspace, root, source, status, libs, incs]
     if len(sys.argv) < 2:
         ui.msg(u'使用 scompiler help 得到用法')
     else:
