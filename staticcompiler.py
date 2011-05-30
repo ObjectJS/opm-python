@@ -227,6 +227,9 @@ class StaticPackage():
 
         return libs
 
+    def is_combinable(self, source):
+        return os.path.exists(source) or source in self.combines.keys()
+
     def get_includes(self, source, all = False):
         if os.path.splitext(source)[1] == '.css':
             def pathTransformer(path):
@@ -236,6 +239,8 @@ class StaticPackage():
             if result:
                 imports, urls = result
                 return [os.path.realpath(os.path.join(os.path.dirname(source), imp)) for imp in imports]
+            else:
+                return []
 
         else:
             if all:
@@ -680,7 +685,7 @@ class StaticPackage():
             source = self.parse(filename)
 
             # 文件存在或在合并列表中都会触发编译
-            if source and self.publish_path and (os.path.exists(source) or source in self.combines.keys()):
+            if source and self.publish_path and self.is_combinable(source):
                 self.build_js(source, filename, force)
 
         elif filetype == '.css':

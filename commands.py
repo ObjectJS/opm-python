@@ -221,7 +221,10 @@ def status(publish_path):
     files = package.get_publish_files()
     for file in files:
         source = package.parse(file)
-        package.get_includes(source)
+        rfiles = package.get_includes(source, all = True)
+        modified, not_exists = package.listener.check(source, rfiles)
+        if len(modified) or len(not_exists):
+            print source
 
 @cwdarg
 @usage(u'scompiler libs [源库路径]')
