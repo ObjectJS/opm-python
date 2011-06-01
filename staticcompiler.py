@@ -102,6 +102,11 @@ class StaticPackage():
         if workspace_path:
             self.workspace = Workspace(workspace_path)
 
+    def init_listener(self):
+        # 不是所有的库都需要有publish_path
+        if self.publish_path:
+            self.listener = FileListener(os.path.join(self.publish_path, INFO_PATH))
+
     def get_package(self, root_path):
         u''' 从缓存中获取package引用，如果没有则生成新的并加入缓存 '''
         package = self.combine_cache.get(root_path)
@@ -112,62 +117,24 @@ class StaticPackage():
 
         return package
 
-    def combine(self, path, force = False, fake = False):
-        u'''
-        执行合并
-        @param path 执行合并的文件
-        @param force 强制执行合并
-        @return combineFiles 数组用来存储整个合并过程所有被合并出来的文件
-        @return relationFiles 数组用来存储此文件相关的实体文件（非合并出来的文件）
-        '''
+    def get_publish_files(self):
+        u''' 发布目录所有的css/js文件 '''
 
-        combineFiles = [] # 存储整个合并过程中被合并出来的文件
-        relationFiles = [] # 存储整个合并过程中最小粒度的文件，最终会按照顺序进行合并
+        def get_files(dir_path):
+            paths = []
+            for root, dirs, files in os.walk(dir_path):
+                if '.svn' in root:
+                    dirs[:] = []
+                    continue
+                for file in files:
+                    path = os.path.join(root, file)
+                    if os.path.splitext(path)[1] in ('.css', '.js'):
+                        paths.append(path)
 
-        if path not in self.combines.keys():
-            return [], []
+            return paths
 
-        text = ''
-        for include in self.combines[path]:
-
-            include = self.get_library_path(include)
-
-            # package变量用来存储需要执行combine方法的package
-            # 本框架外部文件
-            if not include.startswith(self.source_path):
-                root_path = StaticPackage.get_root(include)
-                package = self.get_package(root_path)
-                package.parse(include)
-            # 默认为本package内部文件，为self
-            else:
-                package = self
-
-            # 一个最小粒度的文件
-            if include not in package.combines.keys():
-                relationFiles.append(include)
-
-            # 一个可能是合并出来的文件
-            else:
-                rFiles, cFiles = package.combine(include, force = force, fake = fake)
-                combineFiles.extend(cFiles)
-                relationFiles.extend(rFiles)
-
-        if not fake:
-            modified, notExists = self.listener.check(path, relationFiles)
-            if force or len(modified):
-                for f in modified:
-                    print 'Modified: ', f
-
-                for file in relationFiles:
-                    text += open(file, 'r').read()
-
-                targetDir = os.path.dirname(path)
-                if not os.path.exists(targetDir): os.makedirs(targetDir)
-                open(path, 'w').write(text)
-                print 'Compiled:', path
-                combineFiles.append(path)
-
-        return relationFiles, combineFiles
+        files = get_files(self.publish_path)
+        return files
 
     def get_reverse_libs(self, all = False):
         u''' 所有被依赖库 '''
@@ -208,19 +175,37 @@ class StaticPackage():
 
         return libs
 
-    def get_includes(self, source, all = False):
-        if os.path.splitext(source)[1] == '.css':
+    def get_relation_files(self, source, all = False):
+        u''' 在合并过程中相关的文件列表 '''
+
+        filetype = os.path.splitext(source)[1]
+
+        if filetype == '.css' and source and self.publish_path and os.path.exists(source):
+
             def pathTransformer(path):
                 return self.get_library_path(path)
 
             imports, urls = csscompiler.getUrls(source, pathTransformer = pathTransformer, recursion = all, inAll = True)
-            return [os.path.realpath(os.path.join(os.path.dirname(source), imp)) for imp in imports]
+            urls.extend(imports)
+            # 需要监视的文件列表
+            files = [source]
+            for aurl in urls:
+                # 不支持 http:// 和 绝对路径 
+                if not urlparse(aurl)[0] and not urlparse(aurl)[2].startswith('/'):
+                    file = os.path.join(os.path.split(source)[0], aurl)
+                    file = self.get_library_path(file)
+                    files.append(file)
 
-        else:
+            return files
+
+        elif filetype == '.js' and source and self.publish_path and (source in self.combines.keys() or os.path.exists(source)):
             if all:
-                return self.combine(source, fake = True)[0]
+                return self.get_combine_files(source)
             else:
                 return self.combines[source]
+
+        else:
+            return []
 
     def get_combine_included(self, file):
         u''' 某个文件在当前库中被哪些文件引用了 '''
@@ -256,64 +241,86 @@ class StaticPackage():
 
             return feed_files
 
-    def build_js(self, source, filename, force):
-        u''' 将源文件复制到发布目录 '''
+    def get_combine_files(self, path):
+        u'''
+        @param path 执行合并的文件
+        @return relation_files 数组用来存储此文件相关的最小颗粒度的实体文件（非合并出来的文件）
+        '''
 
-        # combineFiles 存储了本次合并生成的所有文件，在copy完毕后就可以删掉了
-        relationFiles, combineFiles = self.combine(source, force = force)
+        relation_files = [] # 存储整个合并过程中最小粒度的文件，最终会按照顺序进行合并
 
-        combineFiles = {}.fromkeys(combineFiles).keys()
+        if path not in self.combines.keys():
+            return [path]
 
-        targetDir = os.path.dirname(filename)
-        if not os.path.exists(targetDir): os.makedirs(targetDir)
-        try:
-            shutil.copy(source, filename)
-        except:
-            pass
+        for include in self.combines[path]:
 
-        # 执行删除合并后的文件
-        for file in combineFiles:
-            os.remove(file)
+            include = self.get_library_path(include)
 
-    def build_css(self, source, target, mode, force):
-        u''' 生成css文件 '''
+            # package变量用来存储需要执行combine方法的package
+            # 本框架外部文件
+            if not include.startswith(self.source_path):
+                root_path = StaticPackage.get_root(include)
+                package = self.get_package(root_path)
+                package.parse(include)
+            # 默认为本package内部文件，为self
+            else:
+                package = self
 
-        if DEBUG:
-            reload(csscompiler)
-        csscompiler.DEBUG = DEBUG
+            # 一个合并出来的文件
+            if include in package.combines.keys():
+                rFiles = package.get_combine_files(include)
+                relation_files.extend(rFiles)
 
-        def pathTransformer(path):
-            return self.get_library_path(path)
+            # 一个最小粒度的文件
+            else:
+                relation_files.append(include)
 
-        modifiedFiles = []
-        imports, urls = csscompiler.getUrls(source, pathTransformer = pathTransformer, recursion = True, inAll = True)
-        urls.extend(imports)
-        # 需要监视的文件列表
-        files = [source]
-        for aurl in urls:
-            # 不支持 http:// 和 绝对路径 
-            if not urlparse(aurl)[0] and not urlparse(aurl)[2].startswith('/'):
-                file = os.path.join(os.path.split(source)[0], aurl)
-                file = self.get_library_path(file)
-                files.append(file)
+        return relation_files
 
-        modifiedFiles, notExistsFiles = self.listener.check(source, files)
-        for f in modifiedFiles:
-            print 'Modified: ', f
+    def combine(self, output, files):
+        u''' 将files文件列表合并成一个文件并写入到output '''
 
-        if modifiedFiles:
-            force = True
+        text = ''
+        for file in files:
+            text += open(file, 'r').read()
 
-        if not force: return
+        target_dir = os.path.dirname(output)
+        if not os.path.exists(target_dir): os.makedirs(target_dir)
+        open(output, 'w').write(text)
 
-        filename = os.path.split(target)[1]
-        cssId = hashlib.md5(urljoin('/' + urljoin(self.serverRoot, self.serverUrl), filename)).hexdigest()[:8]
+    def compile(self, filename, force = False):
+        filename = os.path.realpath(filename)
+        filetype = os.path.splitext(filename)[1]
 
-        compiler = CSSCompiler(pathTransformer = pathTransformer)
-        css = compiler.compile(source, mode = mode, cssId = cssId)
+        source, mode = self.parse(filename)
 
-        css = self.replace_css_url(css, source, target)
-        self.write_file(target, css)
+        relation_files = self.get_relation_files(source, all = True)
+        modified, not_exists = self.listener.update(source, relation_files)
+
+        if filetype == '.js':
+            if force or len(modified):
+                self.combine(filename, relation_files)
+
+            return modified, not_exists
+
+        elif filetype == '.css':
+            if DEBUG:
+                reload(csscompiler)
+            csscompiler.DEBUG = DEBUG
+
+            if modified or force:
+                filename = os.path.split(filename)[1]
+                cssId = hashlib.md5(urljoin('/' + urljoin(self.serverRoot, self.serverUrl), filename)).hexdigest()[:8]
+
+                compiler = CSSCompiler(pathTransformer = pathTransformer)
+                css = compiler.compile(source, mode = mode, cssId = cssId)
+
+                css = self.replace_css_url(css, source, filename)
+                self.write_file(filename, css)
+
+            return (modified, not_exists)
+
+        return [], []
 
     def replace_css_url(self, css, source, target):
         u''' 将css源文件中的url路径进行转换 '''
@@ -363,9 +370,11 @@ class StaticPackage():
     def build_files(self):
         u''' 复制相关文件 '''
 
-        self.build_source_files()
+        files = self.build_source_files()
         if self.resource_path:
-            self.build_resource_files()
+            files.extend(self.build_resource_files())
+
+        return files
 
     def build_source_files(self):
         # package下的所有资源文件，忽略 lib 目录
@@ -380,7 +389,7 @@ class StaticPackage():
                 path = os.path.join(root, file)
                 allFiles.append(path)
 
-        modified, notExists = self.listener.check(self.source_path, allFiles)
+        modified, notExists = self.listener.update(self.source_path, allFiles)
 
         for file in modified:
             target = os.path.join(self.publish_path, file[len(self.source_path) + 1:])
@@ -389,7 +398,8 @@ class StaticPackage():
                 os.makedirs(target_dir)
 
             shutil.copy(file, target)
-            print 'Copy File:' + file + '\n'
+
+        return modified
 
     def build_resource_files(self):
         # package下的所有资源文件，忽略 lib 目录
@@ -402,7 +412,7 @@ class StaticPackage():
                 path = os.path.join(root, file)
                 allFiles.append(path)
 
-        modified, notExists = self.listener.check(self.resource_path, allFiles)
+        modified, notExists = self.listener.update(self.resource_path, allFiles)
 
         for file in modified:
             resource_publish_path = os.path.realpath(os.path.join(self.publish_path, self.resource_dir))
@@ -412,11 +422,11 @@ class StaticPackage():
                 os.makedirs(target_dir)
 
             shutil.copy(file, target)
-            print 'Copy File:' + file + '\n'
+
+        return modified
 
 
     def write_file(self, path, txt):
-        print 'Compiled:', path
         cssfile = open(path, "w")
         cssfile.write(txt)
         cssfile.close()
@@ -493,11 +503,6 @@ class StaticPackage():
 
                 self.combines[key] = includes
 
-    def init_listener(self):
-        # 不是所有的库都需要有publish_path
-        if self.publish_path:
-            self.listener = FileListener(os.path.join(self.publish_path, INFO_PATH))
-
     def get_library_path(self, includePath):
         includePath = os.path.realpath(includePath)
         # lib下的，要通过packages转换一下路径
@@ -527,34 +532,41 @@ class StaticPackage():
         path = os.path.realpath(path)
 
         if path.startswith(self.source_path):
-            return path
+            return path, None
 
         elif self.publish_path and path.startswith(self.publish_path):
             package_path = path[len(self.publish_path) + 1:]
-            return os.path.join(self.source_path, package_path)
+
+            if os.path.splitext(path)[1] == '.css':
+                # xxx-all-min.css --> xxx
+                package_path = os.path.splitext(package_path)[0].split('-')
+                if len(package_path) < 3: return (None, None)
+                name = '-'.join(package_path[:-2])
+                mode = package_path[-2]
+                source = os.path.join(self.source_path, name + '.css')
+            else:
+                source = os.path.join(self.source_path, package_path)
+                mode = None
+
+            return source, mode
 
         # 有可能是lib下的
         else:
-            return None
+            return None, None
 
-    def parse_css(self, path):
-        path = os.path.realpath(path)
+    def link(self):
+        u''' 连接源库与发布库 '''
 
-        if path.startswith(self.source_path):
-            return (path, None)
+        if self.url:
+            package_file_path = os.path.join(self.publish_path, PACKAGE_FILENAME)
+            open(package_file_path, 'w').write(self.url)
 
-        elif self.publish_path and path.startswith(self.publish_path):
-            package_path = path[len(self.publish_path) + 1:]
-            # xxx-all-min.css --> xxx
-            package_path = os.path.splitext(package_path)[0].split('-')
-            if len(package_path) < 3: return (None, None)
-            name = '-'.join(package_path[:-2])
-            mode = package_path[-2]
-            source = os.path.join(self.source_path, name + '.css')
-            return (source, mode)
+        source_path = os.path.join(self.publish_path, SOURCE_FILENAME)
+        source_dir = os.path.dirname(source_path)
+        if not os.path.exists(source_dir):
+            os.makedirs(source_dir)
 
-        else:
-            return (None, None)
+        open(source_path, 'w').write(self.root)
 
     @staticmethod
     def init(root_path):
@@ -577,20 +589,6 @@ class StaticPackage():
         open(config_path, 'w').write(
             '<package>\n\t<library dir="lib">\n\t</library>\n\t<source dir="src">\n\t</source>\n\t<resource dir="res">\n\t</resource>\n</package>'
         )
-
-    def link(self):
-        u''' 连接源库与发布库 '''
-
-        if self.url:
-            package_file_path = os.path.join(self.publish_path, PACKAGE_FILENAME)
-            open(package_file_path, 'w').write(self.url)
-
-        source_path = os.path.join(self.publish_path, SOURCE_FILENAME)
-        source_dir = os.path.dirname(source_path)
-        if not os.path.exists(source_dir):
-            os.makedirs(source_dir)
-
-        open(source_path, 'w').write(self.root)
 
     @staticmethod
     def is_root(path):
@@ -649,24 +647,6 @@ class StaticPackage():
             return publish_path
         else:
             return publish_path, root_path
-
-    def compile(self, filename, force = False, workspace = None):
-
-        filename = os.path.realpath(filename)
-        filetype = os.path.splitext(filename)[1]
-
-        if filetype == '.js':
-            source = self.parse(filename)
-
-            # 文件存在或在合并列表中都会触发编译
-            if source and self.publish_path and (os.path.exists(source) or source in self.combines.keys()):
-                self.build_js(source, filename, force)
-
-        elif filetype == '.css':
-            source, mode = self.parse_css(filename)
-
-            if source and self.publish_path and os.path.exists(source):
-                self.build_css(source, filename, mode, force)
 
 class Workspace():
     u''' 工作区 '''

@@ -56,34 +56,40 @@ class FileListener():
         return info
 
     def check(self, file, files, fake = False):
-        result = []
-        notExists = []
-        rewrite = False # 是否需要重写信息
+        modified = []
+        not_exists = []
 
         # 假的，每次都返回全都改过，测试用
         if fake:
             return (files, [])
 
-        info = self.getChanges(file)
+        if file.__class__ == dict:
+            info = file
+        else:
+            info = self.getChanges(file)
+
         for path in files:
             path = os.path.realpath(path) # lint
             if not os.path.exists(path):
-                notExists.append(path)
+                not_exists.append(path)
                 # 如果存有信息，但是文件已经不存在了，说明文件曾经有过，现在被删除了，需要把信息也删除，并执行重写
-                # 如果没有信息，文件也不存在，说明路径写错了，无需重写信息，只需返回notExists就可以了
+                # 如果没有信息，文件也不存在，说明路径写错了，无需重写信息，只需返回not_exists就可以了
                 if path in info.keys():
                     del info[path]
-                    rewrite = True
 
             else:
                 timestamp = str(os.stat(path).st_mtime)
                 if path not in info.keys() or timestamp != info[path]:
                     info[path] = timestamp
-                    result.append(path)
-                    rewrite = True
+                    modified.append(path)
 
-        if rewrite:
+        return modified, not_exists
+
+    def update(self, file, files, fake = False):
+        info = self.getChanges(file)
+        modified, not_exists = self.check(info, files, fake = fake)
+
+        if len(modified) or len(not_exists):
             self.writeChanges(file, info)
 
-        return (result, notExists)
-
+        return modified, not_exists

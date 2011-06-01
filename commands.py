@@ -19,22 +19,40 @@ def workspace(root_path):
 
 @arg('filename')
 @option('force', '-f', '--force', action = 'store_true', help = u'强制重新编译')
+@option('no_build_files', '--no-build-files', action = 'store_true', help = u'不发布相关文件')
 @usage(u'scompiler compile 发布库中的某个js/css文件 [options]')
-def compile(filename, force = False):
+def compile(filename, package = None, force = False, no_build_files = False):
     u'编译一个css/js文件'
-    root_path = StaticPackage.get_root(filename)
-    if not root_path:
-        ui.error(u'没有找到源文件')
-    else:
-        package = StaticPackage(root_path)
-        try:
-            package.compile(filename, force = force)
-        except IOError, e:
-            ui.error('%s file not found' % e.filename)
-        except PackageNotFoundException, e:
-            ui.error('%s package not found' % e.url)
 
-        package.build_files()
+    if not package:
+        root_path = StaticPackage.get_root(filename)
+
+        if not root_path:
+            ui.error(u'没有找到源文件')
+            return 1
+        else:
+            package = StaticPackage(root_path)
+
+    try:
+        modified, not_exists = package.compile(filename, force = force)
+    except IOError, e:
+        ui.error('%s file not found' % e.filename)
+    except PackageNotFoundException, e:
+        ui.error('%s package not found' % e.url)
+
+    if force or modified:
+        for modified_file in modified:
+            ui.msg(u'Modified: %s' % modified_file)
+
+        ui.msg(u'Compiled: %s' % filename)
+
+    if not no_build_files:
+        buildfiles(package = package)
+
+def buildfiles(package = None):
+    files = package.build_files()
+    for build_file in files:
+        ui.msg(u'Copy File: %s' % build_file)
 
 @cwdarg
 @arg('link_path')
@@ -87,19 +105,6 @@ def publish(path, publish_path = None, force = False):
     else:
         publish_path, root_path = StaticPackage.get_roots(path)
 
-    def get_files(dir_path):
-        paths = []
-        for root, dirs, files in os.walk(dir_path):
-            if '.svn' in root:
-                dirs[:] = []
-                continue
-            for file in files:
-                path = os.path.join(root, file)
-                if os.path.splitext(path)[1] in ('.css', '.js'):
-                    paths.append(path)
-
-        return paths
-
     if not publish_path:
         ui.msg(u'No publish path.')
     else:
@@ -108,28 +113,22 @@ def publish(path, publish_path = None, force = False):
             ui.msg(u'No publish path.')
         else:
             ui.msg(u'publish to %s from %s' % (path, package.root))
-            all_files = get_files(path)
-            for file in all_files:
-                try:
-                    package.compile(file, force = force)
-                except IOError, e:
-                    ui.error('%s file not found' % e.filename)
-                except PackageNotFoundException, e:
-                    ui.error('No package found ' + e.url)
+            all_files = package.get_publish_files()
+            for filename in all_files:
+                compile(filename, package = package, force = force, no_build_files = True)
 
-        package.build_files()
+        buildfiles(package = package)
         if do_link:
             package.link()
 
 @cwdarg
 @usage(u'scompiler load [工作区路径]')
-def load(workspace_path):
+def load(workspace):
     u''' 加载本地工作区 '''
 
-    if os.path.isfile(workspace_path):
-        workspace_path = os.path.dirname(workspace_path)
+    if workspace.__class__ == str:
+        workspace = Workspace(workspace)
 
-    workspace = Workspace(workspace_path)
     old_count = len(workspace.local_packages)
     workspace.load()
     added_count = len(workspace.local_packages) - old_count
@@ -172,7 +171,7 @@ def init(root_path, publish_path = None, force = False):
 初始化一个新的库，建立template-config.xml配置文件及常用的目录，如果指定了 -p 参数，还可以自动建立与发布目录的连接'''
     ui.msg(u'初始化%s' % root_path)
     try:
-        print u'创建配置文件'
+        ui.msg(u'创建配置文件')
         StaticPackage.init(root_path)
 
     except PublishPackageException:
@@ -188,21 +187,21 @@ def init(root_path, publish_path = None, force = False):
         path = os.path.join(root_path, name)
         if not os.path.exists(path):
             os.makedirs(path)
-            print u'生成默认目录', name
+            ui.msg(u'生成默认目录', name)
 
     workspace_path = Workspace.get_workspace(root_path)
     if not workspace_path:
-        print u'没有工作区，请参照 scompiler help load'
+        ui.msg(u'没有工作区，请参照 scompiler help load')
     else:
         workspace = Workspace(workspace_path)
 
         if not workspace.has_package(root_path):
             workspace.add_package(root_path)
-            print u'加入本地工作区'
+            ui.msg(u'加入本地工作区')
         else:
-            print u'本地工作区中已存在'
+            ui.msg(u'本地工作区中已存在')
 
-    print u'成功！'
+    ui.msg(u'成功！')
 
     if publish_path:
         link(root_path, publish_path, force = force)
@@ -221,6 +220,30 @@ def source(publish_path):
         StaticPackage.get_root(publish_path)
     else:
         ui.error(u'不是一个发布库')
+
+@cwdarg
+def status(publish_path):
+    u''' 检查发布库的编译状态 '''
+    publish_path, root_path = StaticPackage.get_roots(publish_path)
+    if not publish_path:
+        ui.error(u'不是发布库')
+        return 1
+
+    package = StaticPackage(root_path, publish_path)
+
+    files = package.get_publish_files()
+    for filename in files:
+        filetype = os.path.splitext(filename)[1]
+
+        source, mode = package.parse(filename)
+        rfiles = package.get_relation_files(source, all = True)
+        modified, not_exists = package.listener.check(source, rfiles)
+        if len(modified) or len(not_exists):
+            for modified_file in modified:
+                ui.msg('M ' + modified_file)
+
+            for not_exists_file in not_exists:
+                ui.msg('! ' + not_exists_file)
 
 @cwdarg
 @usage(u'scompiler libs [源库路径]')
@@ -274,15 +297,15 @@ def incs(filename, all = False, reverse = False):
 
     if reverse:
         if filetype == '.css':
-            print 'Not support yet, sorry.'
+            ui.error(u'Not support yet, sorry.')
             return 1
         else:
             files = package.get_included(filename, all = all)
     else:
-        files = package.get_includes(filename, all = all)
+        files = package.get_relation_files(filename, all = all)
 
     for file in files:
-        print file
+        ui.msg(file)
 
 @cwdarg
 @option('fastcgi', '--fastcgi', help = u'使用fastcgi进行serve', action = 'store_true')
@@ -295,11 +318,7 @@ def serve(workspace_path, fastcgi = False, port = 8080, debug = False):
 
     if Workspace.is_root(workspace_path):
         workspace = Workspace(os.path.realpath(workspace_path))
-        old_count = len(workspace.local_packages)
-        workspace.load()
-        added_count = len(workspace.local_packages) - old_count
-
-        ui.msg(u'已加入%s个源库' % added_count)
+        load(workspace = workspace)
     else:
         ui.error(u'工作区无效');
         workspace = None
@@ -349,17 +368,8 @@ def serve(workspace_path, fastcgi = False, port = 8080, debug = False):
         publish_path, root_path = StaticPackage.get_roots(filename, workspace = workspace)
         if root_path:
             package = StaticPackage(root_path, publish_path, workspace = workspace)
-
-            try:
-                package.compile(filename, force = force, workspace = workspace)
-            except IOError, e:
-                start_response('400 Compile Error', [])
-                return '%s file not found' % e.filename
-            except PackageNotFoundException, e:
-                start_response('400 Compile Error', [])
-                return '%s package not found' % e.url
-
-            package.build_files()
+            compile(filename, package = package, force = force, no_build_files = True)
+            buildfiles(package = package)
 
         mimetypes = {
             '.css': 'text/css',
@@ -383,7 +393,7 @@ def serve(workspace_path, fastcgi = False, port = 8080, debug = False):
         ui.msg(u'现在还不支持server，请使用 scompiler serve --fastcgi 方式')
 
 def main():
-    commands = [init, compile, publish, link, load, serve, packages, workspace, root, source, libs, incs]
+    commands = [init, compile, publish, link, load, serve, packages, workspace, root, source, status, libs, incs]
     if len(sys.argv) < 2:
         ui.msg(u'使用 scompiler help 得到用法')
     else:
