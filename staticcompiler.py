@@ -705,7 +705,9 @@ class Workspace():
     def rebuild_package(self):
         # 不要在fastcgi中rebuild_package，因为没有文件锁，会出问题，给出提示即可。
         packages_file = open(self.packages_file_path, 'w')
-        for local_path in self.local_packages.keys():
+        packages = self.local_packages.keys()
+        packages.sort()
+        for local_path in packages:
             packages_file.write(self.transform_name(local_path) + '\n')
 
         packages_file.close()
