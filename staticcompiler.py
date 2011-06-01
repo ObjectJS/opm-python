@@ -180,7 +180,7 @@ class StaticPackage():
 
         filetype = os.path.splitext(source)[1]
 
-        if filetype == '.css' and source and self.publish_path and os.path.exists(source):
+        if filetype == '.css' and os.path.exists(source):
 
             def pathTransformer(path):
                 return self.get_library_path(path)
@@ -198,7 +198,7 @@ class StaticPackage():
 
             return files
 
-        elif filetype == '.js' and source and self.publish_path and (source in self.combines.keys() or os.path.exists(source)):
+        elif filetype == '.js' and (source in self.combines.keys() or os.path.exists(source)):
             if all:
                 return self.get_combine_files(source)
             else:
@@ -294,31 +294,32 @@ class StaticPackage():
 
         source, mode = self.parse(filename)
 
-        relation_files = self.get_relation_files(source, all = True)
-        modified, not_exists = self.listener.update(source, relation_files)
+        if source:
+            relation_files = self.get_relation_files(source, all = True)
+            modified, not_exists = self.listener.update(source, relation_files)
 
-        if filetype == '.js':
-            if force or len(modified):
-                self.combine(filename, relation_files)
+            if filetype == '.js':
+                if force or len(modified):
+                    self.combine(filename, relation_files)
 
-            return modified, not_exists
+                return modified, not_exists
 
-        elif filetype == '.css':
-            if DEBUG:
-                reload(csscompiler)
-            csscompiler.DEBUG = DEBUG
+            elif filetype == '.css':
+                if DEBUG:
+                    reload(csscompiler)
+                csscompiler.DEBUG = DEBUG
 
-            if modified or force:
-                filename = os.path.split(filename)[1]
-                cssId = hashlib.md5(urljoin('/' + urljoin(self.serverRoot, self.serverUrl), filename)).hexdigest()[:8]
+                if modified or force:
+                    filename = os.path.split(filename)[1]
+                    cssId = hashlib.md5(urljoin('/' + urljoin(self.serverRoot, self.serverUrl), filename)).hexdigest()[:8]
 
-                compiler = CSSCompiler(pathTransformer = pathTransformer)
-                css = compiler.compile(source, mode = mode, cssId = cssId)
+                    compiler = CSSCompiler(pathTransformer = pathTransformer)
+                    css = compiler.compile(source, mode = mode, cssId = cssId)
 
-                css = self.replace_css_url(css, source, filename)
-                self.write_file(filename, css)
+                    css = self.replace_css_url(css, source, filename)
+                    self.write_file(filename, css)
 
-            return (modified, not_exists)
+                return (modified, not_exists)
 
         return [], []
 
