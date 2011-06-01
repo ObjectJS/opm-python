@@ -223,7 +223,7 @@ def source(publish_path):
 
 @cwdarg
 def status(publish_path):
-    u''' 编译状态 '''
+    u''' 检查发布库的编译状态 '''
     publish_path, root_path = StaticPackage.get_roots(publish_path)
     if not publish_path:
         ui.error(u'不是发布库')
@@ -235,12 +235,8 @@ def status(publish_path):
     for filename in files:
         filetype = os.path.splitext(filename)[1]
 
-        if filetype == '.js':
-            source = package.parse(filename)
-        elif filetype == '.css':
-            source, mode = package.parse_css(filename)
-
-        rfiles = package.get_includes(source, all = True)
+        source, mode = package.parse(filename)
+        rfiles = package.get_relation_files(source, all = True)
         modified, not_exists = package.listener.check(source, rfiles)
         if len(modified) or len(not_exists):
             for modified_file in modified:
@@ -306,7 +302,7 @@ def incs(filename, all = False, reverse = False):
         else:
             files = package.get_included(filename, all = all)
     else:
-        files = package.get_includes(filename, all = all)
+        files = package.get_relation_files(filename, all = all)
 
     for file in files:
         ui.msg(file)

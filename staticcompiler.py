@@ -102,6 +102,11 @@ class StaticPackage():
         if workspace_path:
             self.workspace = Workspace(workspace_path)
 
+    def init_listener(self):
+        # 不是所有的库都需要有publish_path
+        if self.publish_path:
+            self.listener = FileListener(os.path.join(self.publish_path, INFO_PATH))
+
     def get_package(self, root_path):
         u''' 从缓存中获取package引用，如果没有则生成新的并加入缓存 '''
         package = self.combine_cache.get(root_path)
@@ -170,23 +175,37 @@ class StaticPackage():
 
         return libs
 
-    def get_includes(self, source, all = False):
-        if os.path.splitext(source)[1] == '.css':
+    def get_relation_files(self, source, all = False):
+        u''' 在合并过程中相关的文件列表 '''
+
+        filetype = os.path.splitext(source)[1]
+
+        if filetype == '.css' and source and self.publish_path and os.path.exists(source):
+
             def pathTransformer(path):
                 return self.get_library_path(path)
 
-            result = csscompiler.getUrls(source, pathTransformer = pathTransformer, recursion = all, inAll = True)
-            if result:
-                imports, urls = result
-                return [self.get_library_path(os.path.realpath(os.path.join(os.path.dirname(source), imp))) for imp in imports]
-            else:
-                return []
+            imports, urls = csscompiler.getUrls(source, pathTransformer = pathTransformer, recursion = all, inAll = True)
+            urls.extend(imports)
+            # 需要监视的文件列表
+            files = [source]
+            for aurl in urls:
+                # 不支持 http:// 和 绝对路径 
+                if not urlparse(aurl)[0] and not urlparse(aurl)[2].startswith('/'):
+                    file = os.path.join(os.path.split(source)[0], aurl)
+                    file = self.get_library_path(file)
+                    files.append(file)
 
-        else:
+            return files
+
+        elif filetype == '.js' and source and self.publish_path and (source in self.combines.keys() or os.path.exists(source)):
             if all:
                 return self.get_combine_files(source)
             else:
                 return self.combines[source]
+
+        else:
+            return []
 
     def get_combine_included(self, file):
         u''' 某个文件在当前库中被哪些文件引用了 '''
@@ -273,53 +292,33 @@ class StaticPackage():
         filename = os.path.realpath(filename)
         filetype = os.path.splitext(filename)[1]
 
+        source, mode = self.parse(filename)
+
+        relation_files = self.get_relation_files(source, all = True)
+        modified, not_exists = self.listener.update(source, relation_files)
+
         if filetype == '.js':
-            source = self.parse(filename)
+            if force or len(modified):
+                self.combine(filename, relation_files)
 
-            if source and self.publish_path and (source in self.combines.keys() or os.path.exists(source)):
-                relation_files = self.get_combine_files(source)
-                modified, not_exists = self.listener.update(source, relation_files)
-                if force or len(modified):
-                    self.combine(filename, relation_files)
-
-                return modified, not_exists
+            return modified, not_exists
 
         elif filetype == '.css':
-            source, mode = self.parse_css(filename)
+            if DEBUG:
+                reload(csscompiler)
+            csscompiler.DEBUG = DEBUG
 
-            if source and self.publish_path and os.path.exists(source):
+            if modified or force:
+                filename = os.path.split(filename)[1]
+                cssId = hashlib.md5(urljoin('/' + urljoin(self.serverRoot, self.serverUrl), filename)).hexdigest()[:8]
 
-                if DEBUG:
-                    reload(csscompiler)
-                csscompiler.DEBUG = DEBUG
+                compiler = CSSCompiler(pathTransformer = pathTransformer)
+                css = compiler.compile(source, mode = mode, cssId = cssId)
 
-                def pathTransformer(path):
-                    return self.get_library_path(path)
+                css = self.replace_css_url(css, source, filename)
+                self.write_file(filename, css)
 
-                imports, urls = csscompiler.getUrls(source, pathTransformer = pathTransformer, recursion = True, inAll = True)
-                urls.extend(imports)
-                # 需要监视的文件列表
-                files = [source]
-                for aurl in urls:
-                    # 不支持 http:// 和 绝对路径 
-                    if not urlparse(aurl)[0] and not urlparse(aurl)[2].startswith('/'):
-                        file = os.path.join(os.path.split(source)[0], aurl)
-                        file = self.get_library_path(file)
-                        files.append(file)
-
-                modified, not_exists = self.listener.update(source, files)
-
-                if modified or force:
-                    filename = os.path.split(filename)[1]
-                    cssId = hashlib.md5(urljoin('/' + urljoin(self.serverRoot, self.serverUrl), filename)).hexdigest()[:8]
-
-                    compiler = CSSCompiler(pathTransformer = pathTransformer)
-                    css = compiler.compile(source, mode = mode, cssId = cssId)
-
-                    css = self.replace_css_url(css, source, filename)
-                    self.write_file(filename, css)
-
-                return (modified, not_exists)
+            return (modified, not_exists)
 
         return [], []
 
@@ -504,11 +503,6 @@ class StaticPackage():
 
                 self.combines[key] = includes
 
-    def init_listener(self):
-        # 不是所有的库都需要有publish_path
-        if self.publish_path:
-            self.listener = FileListener(os.path.join(self.publish_path, INFO_PATH))
-
     def get_library_path(self, includePath):
         includePath = os.path.realpath(includePath)
         # lib下的，要通过packages转换一下路径
@@ -538,34 +532,27 @@ class StaticPackage():
         path = os.path.realpath(path)
 
         if path.startswith(self.source_path):
-            return path
+            return path, None
 
         elif self.publish_path and path.startswith(self.publish_path):
             package_path = path[len(self.publish_path) + 1:]
-            return os.path.join(self.source_path, package_path)
+
+            if os.path.splitext(path)[1] == '.css':
+                # xxx-all-min.css --> xxx
+                package_path = os.path.splitext(package_path)[0].split('-')
+                if len(package_path) < 3: return (None, None)
+                name = '-'.join(package_path[:-2])
+                mode = package_path[-2]
+                source = os.path.join(self.source_path, name + '.css')
+            else:
+                source = os.path.join(self.source_path, package_path)
+                mode = None
+
+            return source, mode
 
         # 有可能是lib下的
         else:
-            return None
-
-    def parse_css(self, path):
-        path = os.path.realpath(path)
-
-        if path.startswith(self.source_path):
-            return (path, None)
-
-        elif self.publish_path and path.startswith(self.publish_path):
-            package_path = path[len(self.publish_path) + 1:]
-            # xxx-all-min.css --> xxx
-            package_path = os.path.splitext(package_path)[0].split('-')
-            if len(package_path) < 3: return (None, None)
-            name = '-'.join(package_path[:-2])
-            mode = package_path[-2]
-            source = os.path.join(self.source_path, name + '.css')
-            return (source, mode)
-
-        else:
-            return (None, None)
+            return None, None
 
     def link(self):
         u''' 连接源库与发布库 '''

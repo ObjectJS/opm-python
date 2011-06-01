@@ -165,7 +165,7 @@ def getUrls(path, pathTransformer = lambda path: path, recursion = True, inAll =
         src.close()
         css = re.sub(r'\/\*(\s|\S)*?\*\/', lambda m: '', css) # 先清空注释
 
-        matches = re.finditer("(@import)?\s*?url\('?(.+?)'?\)", css, re.M)
+        matches = re.finditer(r'(@import)?\s*?url\([\'"]?(.+?)[\'"]?\)', css, re.M)
         if inAll == True:
             for match in matches:
                 value = urljoin(rurl, match.group(2))
