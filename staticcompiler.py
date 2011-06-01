@@ -309,6 +309,9 @@ class StaticPackage():
                     reload(csscompiler)
                 csscompiler.DEBUG = DEBUG
 
+                def pathTransformer(path):
+                    return self.get_library_path(path)
+
                 if modified or force:
                     filename = os.path.split(filename)[1]
                     cssId = hashlib.md5(urljoin('/' + urljoin(self.serverRoot, self.serverUrl), filename)).hexdigest()[:8]
