@@ -37,10 +37,12 @@ def compile(filename, package = None, force = False, no_build_files = False):
         modified, not_exists = package.compile(filename, force = force)
     except IOError, e:
         ui.error('%s file not found' % e.filename)
+        return 1
     except PackageNotFoundException, e:
         ui.error('%s package not found' % e.url)
+        return 1
 
-    if force or modified:
+    if modified or (force and modified != None):
         for modified_file in modified:
             ui.msg(u'Modified: %s' % modified_file)
 

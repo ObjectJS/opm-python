@@ -205,7 +205,7 @@ class StaticPackage():
                 return self.combines[source]
 
         else:
-            return []
+            return None
 
     def get_combine_included(self, file):
         u''' 某个文件在当前库中被哪些文件引用了 '''
@@ -294,37 +294,43 @@ class StaticPackage():
 
         source, mode = self.parse(filename)
 
-        if source:
-            relation_files = self.get_relation_files(source, all = True)
-            modified, not_exists = self.listener.update(source, relation_files)
+        if not source:
+            return None, None
 
-            if filetype == '.js':
-                if force or len(modified):
-                    self.combine(filename, relation_files)
+        relation_files = self.get_relation_files(source, all = True)
+        if not relation_files:
+            # 没有源文件的发布文件
+            return None, None
 
-                return modified, not_exists
+        modified, not_exists = self.listener.update(source, relation_files)
 
-            elif filetype == '.css':
-                if DEBUG:
-                    reload(csscompiler)
-                csscompiler.DEBUG = DEBUG
+        if filetype == '.js':
+            if force or len(modified):
+                self.combine(filename, relation_files)
 
-                def pathTransformer(path):
-                    return self.get_library_path(path)
+            return modified, not_exists
 
-                if modified or force:
-                    filename = os.path.split(filename)[1]
-                    cssId = hashlib.md5(urljoin('/' + urljoin(self.serverRoot, self.serverUrl), filename)).hexdigest()[:8]
+        elif filetype == '.css':
+            if DEBUG:
+                reload(csscompiler)
+            csscompiler.DEBUG = DEBUG
 
-                    compiler = CSSCompiler(pathTransformer = pathTransformer)
-                    css = compiler.compile(source, mode = mode, cssId = cssId)
+            def pathTransformer(path):
+                return self.get_library_path(path)
 
-                    css = self.replace_css_url(css, source, filename)
-                    self.write_file(filename, css)
+            if modified or force:
+                filename = os.path.split(filename)[1]
+                cssId = hashlib.md5(urljoin('/' + urljoin(self.serverRoot, self.serverUrl), filename)).hexdigest()[:8]
 
-                return (modified, not_exists)
+                compiler = CSSCompiler(pathTransformer = pathTransformer)
+                css = compiler.compile(source, mode = mode, cssId = cssId)
 
-        return [], []
+                css = self.replace_css_url(css, source, filename)
+                self.write_file(filename, css)
+
+            return (modified, not_exists)
+
+        return None, None
 
     def replace_css_url(self, css, source, target):
         u''' 将css源文件中的url路径进行转换 '''
