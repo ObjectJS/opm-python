@@ -324,7 +324,6 @@ class StaticPackage():
 
                 compiler = CSSCompiler(pathTransformer = pathTransformer)
                 css = compiler.compile(source, mode = mode, cssId = cssId)
-
                 css = self.replace_css_url(css, source, filename)
                 self.write_file(filename, css)
 
