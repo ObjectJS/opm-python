@@ -88,7 +88,7 @@ def link(path, link_path, force = False):
 
     package.link()
 
-    ui.msg(u'linked publish %s to %s'% (publish_path, root_path))
+    ui.msg(u'linked publish %s to %s' % (publish_path, root_path))
 
 @cwdarg
 @arg('publish_path')
@@ -189,7 +189,7 @@ def init(root_path, publish_path = None, force = False):
         path = os.path.join(root_path, name)
         if not os.path.exists(path):
             os.makedirs(path)
-            ui.msg(u'生成默认目录', name)
+            ui.msg(u'生成默认目录 %s' % name)
 
     workspace_path = Workspace.get_workspace(root_path)
     if not workspace_path:
