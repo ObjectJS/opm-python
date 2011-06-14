@@ -319,12 +319,12 @@ class StaticPackage():
                 return self.get_library_path(path)
 
             if modified or force:
-                filename = os.path.split(filename)[1]
-                cssId = hashlib.md5(urljoin('/' + urljoin(self.serverRoot, self.serverUrl), filename)).hexdigest()[:8]
+                name = os.path.split(filename)[1]
+                cssId = hashlib.md5(urljoin('/' + urljoin(self.serverRoot, self.serverUrl), name)).hexdigest()[:8]
 
                 compiler = CSSCompiler(pathTransformer = pathTransformer)
                 css = compiler.compile(source, mode = mode, cssId = cssId)
-                css = self.replace_css_url(css, source, filename)
+                css = self.replace_css_url(css, source, name)
                 self.write_file(filename, css)
 
             return (modified, not_exists)
