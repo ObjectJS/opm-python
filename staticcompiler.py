@@ -686,7 +686,6 @@ class Workspace():
     def load(self):
         for root, dirs, files in os.walk(self.root):
             if StaticPackage.is_root(root):
-                dirs[:] = []
                 if not self.has_package(root):
                     self.add_package(root)
 
