@@ -313,14 +313,16 @@ def incs(filename, all = False, reverse = False):
 @option('fastcgi', '--fastcgi', help = u'使用fastcgi进行serve', action = 'store_true')
 @option('port', '--port', help = u'指定端口号', type = 'int')
 @option('debug', '-d', '--debug', help = u'debug模式', action = 'store_true')
-def serve(workspace_path, fastcgi = False, port = 8080, debug = False):
+@option('noload', '-n', '--noload', help = u'启动时不load工作区', action = 'store_true')
+def serve(workspace_path, fastcgi = False, port = 8080, debug = False, noload = False):
     u''' 启动一个静态服务器
 
 请指定工作区路径'''
 
     if Workspace.is_root(workspace_path):
         workspace = Workspace(os.path.realpath(workspace_path))
-        load(workspace = workspace)
+        if not noload:
+            load(workspace = workspace)
     else:
         ui.error(u'工作区无效');
         workspace = None
@@ -367,11 +369,15 @@ def serve(workspace_path, fastcgi = False, port = 8080, debug = False):
         if not 'HTTP_REFERER' in environ.keys():
             force = True
 
-        publish_path, root_path = StaticPackage.get_roots(filename, workspace = workspace)
-        if root_path:
-            package = StaticPackage(root_path, publish_path, workspace = workspace)
-            compile(filename, package = package, force = force, no_build_files = True)
-            buildfiles(package = package)
+        try:
+            publish_path, root_path = StaticPackage.get_roots(filename, workspace = workspace)
+        except PackageNotFoundException, e:
+            ui.error(u'%s package not found' % e.url)
+        else:
+            if root_path:
+                package = StaticPackage(root_path, publish_path, workspace = workspace)
+                compile(filename, package = package, force = force, no_build_files = True)
+                buildfiles(package = package)
 
         mimetypes = {
             '.css': 'text/css',
