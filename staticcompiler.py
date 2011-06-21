@@ -293,7 +293,6 @@ class StaticPackage():
         filetype = os.path.splitext(filename)[1]
 
         source, mode = self.parse(filename)
-
         if not source:
             return None, None
 
@@ -302,7 +301,7 @@ class StaticPackage():
             # 没有源文件的发布文件
             return None, None
 
-        modified, not_exists = self.listener.update(source, relation_files)
+        modified, not_exists = self.listener.update(filename, relation_files)
 
         if filetype == '.js':
             if force or len(modified):
