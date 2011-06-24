@@ -5,7 +5,32 @@ import sys
 import ui
 import utils.commandline
 from utils.commandline import arg, cwdarg, option, usage
-from staticcompiler import StaticPackage, Workspace, PublishPackageException, NoPublishPathException, PackageNotFoundException, PackageExistsException
+from staticcompiler import StaticPackage, Workspace, PublishPackageException, PackageNotFoundException, PackageExistsException, FetchException
+
+@cwdarg
+@usage(u'scompiler get [源库url]')
+@arg('url')
+def get(workspace, url):
+    u''' 从公共代码库获取源库 '''
+
+    if workspace.__class__ == str:
+        workspace = Workspace(workspace)
+
+    load(workspace)
+
+    try:
+        packages = workspace.fetch_packages(url)
+    except PackageNotFoundException, e:
+        ui.error('%s package not found' % e.url)
+        return 1
+
+    for package in packages:
+        try:
+            workspace.fetch(package)
+        except FetchException, e:
+            ui.error(u'fetch error')
+        except PackageExistsException, e:
+            ui.error(u'%s package already exists' % e.root)
 
 @cwdarg
 @usage(u'scompiler workspace [源库路径]')
@@ -401,7 +426,7 @@ def serve(workspace_path, fastcgi = False, port = 8080, debug = False, noload = 
         ui.msg(u'现在还不支持server，请使用 scompiler serve --fastcgi 方式')
 
 def main():
-    commands = [init, compile, publish, link, load, serve, packages, workspace, root, source, status, libs, incs]
+    commands = [get, init, compile, publish, link, load, serve, packages, workspace, root, source, status, libs, incs]
     if len(sys.argv) < 2:
         ui.msg(u'使用 scompiler help 得到用法')
     else:
