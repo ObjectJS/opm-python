@@ -646,6 +646,7 @@ class StaticPackage():
             # 直接找到配置文件
             if not just_publish_path and StaticPackage.is_root(path):
                 root_path = os.path.realpath(path)
+                break
 
             newpath = os.path.realpath(os.path.join(path, '../'))
             if newpath == path: break # 已经到根目录了，停止循环
