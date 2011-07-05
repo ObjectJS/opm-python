@@ -28,11 +28,9 @@ def get(workspace, url):
             try:
                 workspace.fetch(package)
             except FetchException, e:
-                ui.error(u'fetch error')
+                ui.error(u'fetch %s error' % e.root)
             except PackageExistsException, e:
                 ui.error(u'%s package already exists' % e.root)
-
-    load(workspace)
 
 @cwdarg
 @usage(u'opm workspace [源库路径]')

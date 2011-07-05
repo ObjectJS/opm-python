@@ -56,7 +56,8 @@ class PackageExistsException(Exception):
         self.root = root_path
 
 class FetchException(Exception):
-    pass
+    def __init__(self, root_path):
+        self.root = root_path
 
 class NotInWorkspaceException(Exception):
     pass
@@ -736,9 +737,13 @@ class Workspace():
 
         return packages
 
+    def remote2local(self, package):
+        u''' 将一个remotepackage的地址转换成当在本地时的地址 '''
+        return os.path.realpath(os.path.join(self.root, package.hg_dir))
+
     def fetch(self, package):
 
-        local_path = os.path.realpath(os.path.join(self.root, package.hg_dir))
+        local_path = self.remote2local(package)
 
         if self.has_package(local_path):
             raise PackageExistsException(local_path)
@@ -749,17 +754,18 @@ class Workspace():
                 parent_local_path = os.path.realpath(os.path.join(self.root, parent.hg_dir))
                 if not os.path.exists(parent_local_path):
                     try:
-                        print 'clone parent ' + parent_local_path
                         mercurial.hg.clone(mercurial.ui.ui(), parent.hg_root, parent_local_path, update = False)
                     except:
-                        raise FetchException()
+                        raise FetchException(parent_local_path)
 
             if not os.path.exists(local_path):
                 try:
-                    print 'clone package ' + local_path
                     mercurial.hg.clone(mercurial.ui.ui(), package.hg_root, local_path)
                 except:
-                    raise FetchException()
+                    raise FetchException(local_path)
+
+            for sub in package.get_subs():
+                self.add_package(self.remote2local(sub))
 
     def load(self):
         for root, dirs, files in os.walk(self.root):
@@ -888,6 +894,19 @@ class RemoteStaticPackage(StaticPackage):
         parents = sorted(parents, cmp = lambda x, y: cmp(len(x.root), len(y.root)))
 
         return parents
+
+    def get_subs(self):
+        u''' 获取子库 '''
+
+        subs = []
+        for path in self.workspace.local_packages:
+            hg_path = self.get_hg_path(self.root)
+            if path != self.root and path.startswith(hg_path):
+                subs.append(self.get_package(path))
+
+        subs = sorted(subs, cmp = lambda x, y: cmp(len(x.root), len(y.root)))
+
+        return subs
 
     @staticmethod
     def get_hg_path(path):
