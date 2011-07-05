@@ -8,7 +8,7 @@ from utils.commandline import arg, cwdarg, option, usage
 from staticcompiler import StaticPackage, Workspace, PublishPackageException, NoPublishPathException, PackageNotFoundException, PackageExistsException
 
 @cwdarg
-@usage(u'scompiler workspace [源库路径]')
+@usage(u'opm workspace [源库路径]')
 def workspace(root_path):
     u''' 源库所在工作区 '''
     if StaticPackage.get_root(root_path):
@@ -20,7 +20,7 @@ def workspace(root_path):
 @arg('filename')
 @option('force', '-f', '--force', action = 'store_true', help = u'强制重新编译')
 @option('no_build_files', '--no-build-files', action = 'store_true', help = u'不发布相关文件')
-@usage(u'scompiler compile 发布库中的某个js/css文件 [options]')
+@usage(u'opm compile 发布库中的某个js/css文件 [options]')
 def compile(filename, package = None, force = False, no_build_files = False):
     u'编译一个css/js文件'
 
@@ -83,7 +83,7 @@ def link(path, link_path, force = False):
         if force:
             os.makedirs(publish_path)
         else:
-            ui.msg(u'%s path not exists, run scompiler link path -f to create it.' % publish_path)
+            ui.msg(u'%s path not exists, run opm link path -f to create it.' % publish_path)
             return 1
 
     package.link()
@@ -93,7 +93,7 @@ def link(path, link_path, force = False):
 @cwdarg
 @arg('publish_path')
 @option('force', '-f', '--force', help = u'强制编译', action = 'store_true')
-@usage(u'scompiler publish [源库路径] [发布库路径] [options]')
+@usage(u'opm publish [源库路径] [发布库路径] [options]')
 def publish(path, publish_path = None, force = False):
     u'''将整个目录进行发布'''
 
@@ -124,7 +124,7 @@ def publish(path, publish_path = None, force = False):
             package.link()
 
 @cwdarg
-@usage(u'scompiler load [工作区路径]')
+@usage(u'opm load [工作区路径]')
 def load(workspace):
     u''' 加载本地工作区 '''
 
@@ -143,7 +143,7 @@ def load(workspace):
 
 @cwdarg
 @option('show_url', '-u', '--show-url', action = 'store_true', help = u'显示有url的源库的url')
-@usage(u'scompiler packages [工作区路径]')
+@usage(u'opm packages [工作区路径]')
 def packages(workspace_path, show_url = False):
     u''' 本工作区中所有源库 '''
 
@@ -193,7 +193,7 @@ def init(root_path, publish_path = None, force = False):
 
     workspace_path = Workspace.get_workspace(root_path)
     if not workspace_path:
-        ui.msg(u'没有工作区，请参照 scompiler help load')
+        ui.msg(u'没有工作区，请参照 opm help load')
     else:
         workspace = Workspace(workspace_path)
 
@@ -209,13 +209,13 @@ def init(root_path, publish_path = None, force = False):
         link(root_path, publish_path, force = force)
 
 @cwdarg
-@usage(u'scompiler root [源库路径]')
+@usage(u'opm root [源库路径]')
 def root(root_path):
     u''' 源库的根路径 '''
     ui.msg(StaticPackage.get_root(root_path))
 
 @cwdarg
-@usage(u'scompiler source [源库路径] [options]')
+@usage(u'opm source [源库路径] [options]')
 def source(publish_path):
     u''' 映射的源库路径 '''
     if StaticPackage.get_publish(publish_path):
@@ -248,7 +248,7 @@ def status(publish_path):
                 ui.msg('! ' + not_exists_file)
 
 @cwdarg
-@usage(u'scompiler libs [源库路径]')
+@usage(u'opm libs [源库路径]')
 @option('show_url', '-u', '--show-url', help=u'显示url而非本地路径', action='store_true')
 @option('all', '-a', '--all', help=u'递归显示所有', action='store_true')
 @option('reverse', '-r', '--reverse', help=u'显示被依赖的', action='store_true')
@@ -398,12 +398,12 @@ def serve(workspace_path, fastcgi = False, port = 8080, debug = False, noload = 
 
         WSGIServer(listen, bindAddress=('localhost', port), debug = debug).run()
     else:
-        ui.msg(u'现在还不支持server，请使用 scompiler serve --fastcgi 方式')
+        ui.msg(u'现在还不支持server，请使用 opm serve --fastcgi 方式')
 
 def main():
     commands = [init, compile, publish, link, load, serve, packages, workspace, root, source, status, libs, incs]
     if len(sys.argv) < 2:
-        ui.msg(u'使用 scompiler help 得到用法')
+        ui.msg(u'使用 opm help 得到用法')
     else:
         command = sys.argv[1]
         if command == 'help':
