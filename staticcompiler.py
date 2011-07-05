@@ -5,7 +5,6 @@ import sys
 import os
 import os.path
 import shutil
-import urllib2
 import hashlib
 import re
 import commands
@@ -14,11 +13,6 @@ from xml.etree import ElementTree
 from filelistener import FileListener
 import csscompiler
 from csscompiler import CSSCompiler
-
-stdout = sys.stdout
-import mercurial.hg
-import mercurial.ui
-sys.stdout = stdout
 
 DEBUG = False
 CONFIG_FILENAME = 'template-config.xml'
@@ -52,27 +46,32 @@ def path2uri(path):
 class PublishPackageException(Exception):
     pass
 
-class PackageExistsException(Exception):
-    def __init__(self, root_path):
-        self.root = root_path
+class NotPackageException(Exception):
+    pass
 
-class FetchException(Exception):
+class PackageExistsException(Exception):
     pass
 
 class NotInWorkspaceException(Exception):
+    pass
+
+class NoPublishPathException(Exception):
     pass
 
 class PackageNotFoundException(Exception):
     def __init__(self, package_url):
         self.url = package_url
 
-class WorkspaceNotFoundException(Exception):
+class WorkspaceNotFouncException(Exception):
     pass
 
 class StaticPackage():
     u''' 静态编译库 '''
 
     def __init__(self, root_path, publish_path = None, workspace = None, listener = None):
+        if not self.is_root(root_path):
+            raise NotPackageException()
+
         self.url = None
         self.combines = {}
         self.listener = listener
@@ -159,9 +158,15 @@ class StaticPackage():
 
     def get_sub_packages(self):
         subs = []
-        for package_root in self.workspace.local_packages:
-            if package_root != self.root and package_root.startswith(self.root):
-                subs.append(package_root)
+
+        if self.workspace:
+            for package_root in self.workspace.local_packages:
+                if package_root != self.root and package_root.startswith(self.root):
+                    subs.append(package_root)
+
+        else:
+            # 遍历磁盘
+            pass
 
         return subs
 
@@ -169,22 +174,7 @@ class StaticPackage():
         u''' 所有依赖库 '''
 
         libs = []
-
-        def get_sub(local_path):
-            u'获取一个库的所有依赖库并存入libs'
-            package = self.get_package(local_path)
-            if package:
-                sublibs = package.get_libs(all = True)
-                libs.extend([subpath for subpath in sublibs if subpath not in libs])
-
         if self.workspace:
-
-            if all:
-                # 获取sub_packages的所有依赖库
-                sub_packages = self.get_sub_packages()
-                for local_path in sub_packages:
-                    get_sub(local_path)
-
             for url in self.library_folders.values():
                 local_path = self.workspace.url_packages.get(url)
 
@@ -192,7 +182,10 @@ class StaticPackage():
                     libs.append(local_path)
 
                 if all:
-                    get_sub(local_path)
+                    package = self.get_package(local_path)
+                    if package:
+                        sublibs = package.get_libs(all = True)
+                        libs.extend([subpath for subpath in sublibs if subpath not in libs])
 
         return libs
 
@@ -454,15 +447,18 @@ class StaticPackage():
 
         return modified
 
+
     def write_file(self, path, txt):
         cssfile = open(path, "w")
         cssfile.write(txt)
         cssfile.close()
 
-    def joinpath(self, path1, path2):
-        return os.path.realpath(os.path.join(path1, path2))
+    def load_config(self):
+        ''' 解析配置文件 '''
 
-    def parse_config(self, xmlConfig):
+        path = os.path.join(self.root, CONFIG_FILENAME)
+        xmlConfig = ElementTree.parse(path)
+
         # 已通过source文件读取到publish_path信息
         # 或者已经通过构造函数传进了publish_path信息
         # 不用通过template-config.xml读取
@@ -477,19 +473,19 @@ class StaticPackage():
                 publishDir = xmlConfig.find('publish').get('dir')
                 if not publishDir.endswith('/'): publishDir += '/'
 
-                self.publish_path = self.joinpath(self.root, publishDir)
+                self.publish_path = os.path.realpath(os.path.join(self.root, publishDir))
 
-        self.url = xmlConfig.get('url')
+        self.url = xmlConfig.getroot().get('url')
 
         # source 是必需的
         sourceDir = xmlConfig.find('source').attrib['dir']
         if not sourceDir.endswith('/'): sourceDir += '/'
-        self.source_path = self.joinpath(self.root, sourceDir)
+        self.source_path = os.path.realpath(os.path.join(self.root, sourceDir))
 
         libraryNode = xmlConfig.find('library')
         if libraryNode != None:
             libraryDir = libraryNode.get('dir')
-            self.library_path = self.joinpath(self.root, libraryDir)
+            self.library_path = os.path.realpath(os.path.join(self.root, libraryDir))
             folderNodes = libraryNode.findall('folder')
             for folderNode in folderNodes:
                self.library_folders[folderNode.get('name')] = folderNode.get('url')
@@ -498,7 +494,7 @@ class StaticPackage():
         if resourceNode != None and 'dir' in resourceNode.attrib.keys():
             self.resource_dir = resourceNode.attrib['dir']
             if not self.resource_dir.endswith('/'): self.resource_dir += '/'
-            self.resource_path = self.joinpath(self.root, self.resource_dir)
+            self.resource_path = os.path.realpath(os.path.join(self.root, self.resource_dir))
 
         serverNode = xmlConfig.find('server')
         if serverNode != None:
@@ -520,20 +516,14 @@ class StaticPackage():
         combinesXML = xmlConfig.findall('source/combine')
         if combinesXML:
             for combine in combinesXML:
-                key = self.joinpath(self.source_path, combine.get('path'))
+                key = os.path.realpath(os.path.join(self.source_path, combine.get('path')))
                 includesXML = combine.findall('include')
                 includes = []
                 for include in includesXML:
-                    includePath = self.joinpath(self.source_path, include.get('path'))
+                    includePath = os.path.realpath(os.path.join(self.source_path, include.get('path')))
                     includes.append(includePath)
 
                 self.combines[key] = includes
-
-    def load_config(self):
-        ''' 解析配置文件 '''
-        path = os.path.join(self.root, CONFIG_FILENAME)
-        xmlConfig = ElementTree.parse(path)
-        self.parse_config(xmlConfig.getroot())
 
     def get_library_path(self, includePath):
         includePath = os.path.realpath(includePath)
@@ -613,7 +603,7 @@ class StaticPackage():
         config_path = os.path.join(root_path, CONFIG_FILENAME)
 
         if os.path.exists(config_path):
-            raise PackageExistsException(root_path)
+            raise PackageExistsException
 
         if not os.path.exists(root_path):
             os.makedirs(root_path)
@@ -689,19 +679,12 @@ class Workspace():
         self.url_packages = {}
         self.local_packages = {}
         self.useless_packages = []
-        self.remote_server = 'http://hg.xnimg.cn/'
-        self.init_packages()
+        self.init()
 
-    def init_packages(self):
+    def init(self):
         if not os.path.exists(self.packages_file_path): return
 
-        packages_file = open(self.packages_file_path, 'r').read().strip()
-        if packages_file:
-            lines = packages_file.split('\n')
-        else:
-            lines = []
-
-        for package_path in lines:
+        for package_path in open(self.packages_file_path, 'r'):
             package_path, publish_path = re.match('^(.+?)\s*(?:=\s*(.+)?)?$', package_path.strip()).groups()
             local_path = os.path.realpath(os.path.join(self.root, package_path))
             config_path = os.path.join(local_path, CONFIG_FILENAME)
@@ -732,16 +715,28 @@ class Workspace():
 
     def fetch(self, package):
 
-        local_path = os.path.realpath(os.path.join(self.root, package.dir))
+        local_path = os.path.realpath(os.path.join(self.root, package.hg_dir))
 
         if self.has_package(local_path):
             raise PackageExistsException(local_path)
         else:
             self.add_package(local_path)
-            try:
-                mercurial.hg.clone(mercurial.ui.ui(), package.hg_url, local_path)
-            except:
-                raise FetchException()
+
+            for parent in package.get_parents():
+                parent_local_path = os.path.realpath(os.path.join(self.root, parent.hg_dir))
+                if not os.path.exists(parent_local_path):
+                    try:
+                        print 'clone parent ' + parent_local_path
+                        mercurial.hg.clone(mercurial.ui.ui(), parent.hg_root, parent_local_path, update = False)
+                    except:
+                        raise FetchException()
+
+            if not os.path.exists(local_path):
+                try:
+                    print 'clone package ' + local_path
+                    mercurial.hg.clone(mercurial.ui.ui(), package.hg_root, local_path)
+                except:
+                    raise FetchException()
 
     def load(self):
         for root, dirs, files in os.walk(self.root):
@@ -830,8 +825,8 @@ class RemoteStaticPackage(StaticPackage):
     def __init__(self, root_path, publish_path = None, workspace = None, listener = None):
         StaticPackage.__init__(self, root_path, publish_path = publish_path, workspace = workspace, listener = listener)
 
-        self.hg_url = root_path[:-13] # remove /raw-file/tip/ at the end
-        self.dir = root_path[len(self.workspace.root):-13] # remove /raw-file/tip/ at the end
+        self.hg_root = self.get_hg_path(root_path)
+        self.hg_dir = self.get_hg_path(root_path[len(self.workspace.root):])
 
     def joinpath(self, path1, path2):
         return urljoin(path1, path2)
@@ -857,6 +852,26 @@ class RemoteStaticPackage(StaticPackage):
             package.combine_cache = self.combine_cache
 
         return package
+
+    def get_parents(self):
+        u''' 获取父库 '''
+        parents = []
+        for path in self.workspace.local_packages:
+            hg_path = self.get_hg_path(path)
+            if path != self.root and self.root.startswith(hg_path):
+                parents.append(self.get_package(path))
+
+        # 按照路径长短排序，短的排前面，确保生成路径时先生成短的，先生成长的会导致短的无法生成
+        parents = sorted(parents, cmp = lambda x, y: cmp(len(x.root), len(y.root)))
+
+        return parents
+
+    @staticmethod
+    def get_hg_path(path):
+        if path.endswith('/raw-file/tip/'):
+            return path[:-13] # remove /raw-file/tip/ at the end
+        else:
+            return path
 
 if __name__ == '__main__':
     commands.main()
