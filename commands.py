@@ -428,7 +428,7 @@ def serve(workspace_path, fastcgi = False, port = 8080, debug = False, noload = 
         ui.msg(u'现在还不支持server，请使用 opm serve --fastcgi 方式')
 
 def main():
-    commands = [init, compile, publish, link, load, serve, packages, workspace, root, source, status, libs, incs]
+    commands = [get, init, compile, publish, link, load, serve, packages, workspace, root, source, status, libs, incs]
     if len(sys.argv) < 2:
         ui.msg(u'使用 opm help 得到用法')
     else:

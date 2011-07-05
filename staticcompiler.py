@@ -5,6 +5,7 @@ import sys
 import os
 import os.path
 import shutil
+import urllib2
 import hashlib
 import re
 import commands
@@ -13,6 +14,10 @@ from xml.etree import ElementTree
 from filelistener import FileListener
 import csscompiler
 from csscompiler import CSSCompiler
+stdout = sys.stdout
+import mercurial.hg
+import mercurial.ui
+sys.stdout = stdout
 
 DEBUG = False
 CONFIG_FILENAME = 'template-config.xml'
@@ -46,32 +51,27 @@ def path2uri(path):
 class PublishPackageException(Exception):
     pass
 
-class NotPackageException(Exception):
-    pass
-
 class PackageExistsException(Exception):
+    def __init__(self, root_path):
+        self.root = root_path
+
+class FetchException(Exception):
     pass
 
 class NotInWorkspaceException(Exception):
-    pass
-
-class NoPublishPathException(Exception):
     pass
 
 class PackageNotFoundException(Exception):
     def __init__(self, package_url):
         self.url = package_url
 
-class WorkspaceNotFouncException(Exception):
+class WorkspaceNotFoundException(Exception):
     pass
 
 class StaticPackage():
     u''' 静态编译库 '''
 
     def __init__(self, root_path, publish_path = None, workspace = None, listener = None):
-        if not self.is_root(root_path):
-            raise NotPackageException()
-
         self.url = None
         self.combines = {}
         self.listener = listener
@@ -174,7 +174,22 @@ class StaticPackage():
         u''' 所有依赖库 '''
 
         libs = []
+
+        def get_sub(local_path):
+            u'获取一个库的所有依赖库并存入libs'
+            package = self.get_package(local_path)
+            if package:
+                sublibs = package.get_libs(all = True)
+                libs.extend([subpath for subpath in sublibs if subpath not in libs])
+
         if self.workspace:
+
+            if all:
+                # 获取sub_packages的所有依赖库
+                sub_packages = self.get_sub_packages()
+                for local_path in sub_packages:
+                    get_sub(local_path)
+
             for url in self.library_folders.values():
                 local_path = self.workspace.url_packages.get(url)
 
@@ -182,10 +197,7 @@ class StaticPackage():
                     libs.append(local_path)
 
                 if all:
-                    package = self.get_package(local_path)
-                    if package:
-                        sublibs = package.get_libs(all = True)
-                        libs.extend([subpath for subpath in sublibs if subpath not in libs])
+                    get_sub(local_path)
 
         return libs
 
@@ -452,13 +464,10 @@ class StaticPackage():
         cssfile = open(path, "w")
         cssfile.write(txt)
         cssfile.close()
+    def joinpath(self, path1, path2):
+        return os.path.realpath(os.path.join(path1, path2))
 
-    def load_config(self):
-        ''' 解析配置文件 '''
-
-        path = os.path.join(self.root, CONFIG_FILENAME)
-        xmlConfig = ElementTree.parse(path)
-
+    def parse_config(self, xmlConfig):
         # 已通过source文件读取到publish_path信息
         # 或者已经通过构造函数传进了publish_path信息
         # 不用通过template-config.xml读取
@@ -473,19 +482,19 @@ class StaticPackage():
                 publishDir = xmlConfig.find('publish').get('dir')
                 if not publishDir.endswith('/'): publishDir += '/'
 
-                self.publish_path = os.path.realpath(os.path.join(self.root, publishDir))
+                self.publish_path = self.joinpath(self.root, publishDir)
 
-        self.url = xmlConfig.getroot().get('url')
+        self.url = xmlConfig.get('url')
 
         # source 是必需的
         sourceDir = xmlConfig.find('source').attrib['dir']
         if not sourceDir.endswith('/'): sourceDir += '/'
-        self.source_path = os.path.realpath(os.path.join(self.root, sourceDir))
+        self.source_path = self.joinpath(self.root, sourceDir)
 
         libraryNode = xmlConfig.find('library')
         if libraryNode != None:
             libraryDir = libraryNode.get('dir')
-            self.library_path = os.path.realpath(os.path.join(self.root, libraryDir))
+            self.library_path = self.joinpath(self.root, libraryDir)
             folderNodes = libraryNode.findall('folder')
             for folderNode in folderNodes:
                self.library_folders[folderNode.get('name')] = folderNode.get('url')
@@ -494,7 +503,7 @@ class StaticPackage():
         if resourceNode != None and 'dir' in resourceNode.attrib.keys():
             self.resource_dir = resourceNode.attrib['dir']
             if not self.resource_dir.endswith('/'): self.resource_dir += '/'
-            self.resource_path = os.path.realpath(os.path.join(self.root, self.resource_dir))
+            self.resource_path = self.joinpath(self.root, self.resource_dir)
 
         serverNode = xmlConfig.find('server')
         if serverNode != None:
@@ -516,14 +525,20 @@ class StaticPackage():
         combinesXML = xmlConfig.findall('source/combine')
         if combinesXML:
             for combine in combinesXML:
-                key = os.path.realpath(os.path.join(self.source_path, combine.get('path')))
+                key = self.joinpath(self.source_path, combine.get('path'))
                 includesXML = combine.findall('include')
                 includes = []
                 for include in includesXML:
-                    includePath = os.path.realpath(os.path.join(self.source_path, include.get('path')))
+                    includePath = self.joinpath(self.source_path, include.get('path'))
                     includes.append(includePath)
 
                 self.combines[key] = includes
+
+    def load_config(self):
+        ''' 解析配置文件 '''
+        path = os.path.join(self.root, CONFIG_FILENAME)
+        xmlConfig = ElementTree.parse(path)
+        self.parse_config(xmlConfig.getroot())
 
     def get_library_path(self, includePath):
         includePath = os.path.realpath(includePath)
@@ -603,7 +618,7 @@ class StaticPackage():
         config_path = os.path.join(root_path, CONFIG_FILENAME)
 
         if os.path.exists(config_path):
-            raise PackageExistsException
+            raise PackageExistsException(root_path)
 
         if not os.path.exists(root_path):
             os.makedirs(root_path)
@@ -680,12 +695,19 @@ class Workspace():
         self.url_packages = {}
         self.local_packages = {}
         self.useless_packages = []
-        self.init()
+        self.remote_server = 'http://hg.xnimg.cn/'
+        self.init_packages()
 
-    def init(self):
+    def init_packages(self):
         if not os.path.exists(self.packages_file_path): return
 
-        for package_path in open(self.packages_file_path, 'r'):
+        packages_file = open(self.packages_file_path, 'r').read().strip()
+        if packages_file:
+            lines = packages_file.split('\n')
+        else:
+            lines = []
+
+        for package_path in lines:
             package_path, publish_path = re.match('^(.+?)\s*(?:=\s*(.+)?)?$', package_path.strip()).groups()
             local_path = os.path.realpath(os.path.join(self.root, package_path))
             config_path = os.path.join(local_path, CONFIG_FILENAME)
