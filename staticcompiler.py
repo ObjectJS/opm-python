@@ -15,8 +15,9 @@ from filelistener import FileListener
 import csscompiler
 from csscompiler import CSSCompiler
 stdout = sys.stdout
-import mercurial.hg
+import mercurial.commands
 import mercurial.ui
+import mercurial.hg
 sys.stdout = stdout
 
 DEBUG = False
@@ -720,7 +721,12 @@ class Workspace():
                 self.local_packages[local_path] = package_url
                 if package_url: self.url_packages[package_url] = local_path
 
+    def remote2local(self, package):
+        u''' 将一个remotepackage的地址转换成当在本地时的地址 '''
+        return os.path.realpath(os.path.join(self.root, package.hg_dir))
+
     def fetch_packages(self, package_url):
+        u''' 根据package url找到所有相关package '''
 
         remote_workspace = RemoteWorkspace(self.remote_server)
 
@@ -730,41 +736,55 @@ class Workspace():
         path = remote_workspace.url_packages[package_url]
         package = RemoteStaticPackage(path, workspace = remote_workspace)
 
-        packages = [package]
+        packages = [path]
 
         for local_path in package.get_libs(all = True):
-            packages.append(package.get_package(local_path))
+            packages.append(local_path)
+
+        # 所有子库的相关依赖库
+        for sub in package.subs:
+            sub = package.get_package(sub)
+            for local_path in sub.get_libs(all = True):
+                if local_path not in packages:
+                    packages.append(local_path)
+
+        packages = [package.get_package(root_path) for root_path in packages]
 
         return packages
-
-    def remote2local(self, package):
-        u''' 将一个remotepackage的地址转换成当在本地时的地址 '''
-        return os.path.realpath(os.path.join(self.root, package.hg_dir))
 
     def fetch(self, package):
 
         local_path = self.remote2local(package)
+        ui = mercurial.ui.ui()
 
         if self.has_package(local_path):
             raise PackageExistsException(local_path)
         else:
             self.add_package(local_path)
 
-            for parent in package.get_parents():
+            for parent in package.parents:
+                parent = package.get_package(parent)
                 parent_local_path = os.path.realpath(os.path.join(self.root, parent.hg_dir))
                 if not os.path.exists(parent_local_path):
                     try:
-                        mercurial.hg.clone(mercurial.ui.ui(), parent.hg_root, parent_local_path, update = False)
+                        mercurial.commands.clone(ui, parent.hg_root, parent_local_path, update = False)
                     except:
                         raise FetchException(parent_local_path)
 
             if not os.path.exists(local_path):
                 try:
-                    mercurial.hg.clone(mercurial.ui.ui(), package.hg_root, local_path)
+                    mercurial.commands.clone(ui, package.hg_root, local_path)
+                except:
+                    raise FetchException(local_path)
+            else:
+                try:
+                    mercurial.commands.update(ui, mercurial.hg.repository(ui, local_path))
                 except:
                     raise FetchException(local_path)
 
-            for sub in package.get_subs():
+            # 将子库加入workspace
+            for sub in package.subs:
+                sub = package.get_package(sub)
                 self.add_package(self.remote2local(sub))
 
     def load(self):
@@ -857,6 +877,20 @@ class RemoteStaticPackage(StaticPackage):
         self.hg_root = self.get_hg_path(root_path)
         self.hg_dir = self.get_hg_path(root_path[len(self.workspace.root):])
 
+        parents = []
+        subs = []
+        hg_root = self.get_hg_path(self.root)
+        for path in self.workspace.local_packages:
+            if path != self.root:
+                if self.root.startswith(self.get_hg_path(path)):
+                    parents.append(path)
+                elif path.startswith(hg_root):
+                    subs.append(path)
+
+        # 按照路径长短排序，短的排前面，确保生成路径时先生成短的，先生成长的会导致短的无法生成
+        self.parents = sorted(parents, cmp = lambda x, y: cmp(len(x), len(y)))
+        self.subs = sorted(subs, cmp = lambda x, y: cmp(len(x), len(y)))
+
     def joinpath(self, path1, path2):
         return urljoin(path1, path2)
 
@@ -881,32 +915,6 @@ class RemoteStaticPackage(StaticPackage):
             package.combine_cache = self.combine_cache
 
         return package
-
-    def get_parents(self):
-        u''' 获取父库 '''
-        parents = []
-        for path in self.workspace.local_packages:
-            hg_path = self.get_hg_path(path)
-            if path != self.root and self.root.startswith(hg_path):
-                parents.append(self.get_package(path))
-
-        # 按照路径长短排序，短的排前面，确保生成路径时先生成短的，先生成长的会导致短的无法生成
-        parents = sorted(parents, cmp = lambda x, y: cmp(len(x.root), len(y.root)))
-
-        return parents
-
-    def get_subs(self):
-        u''' 获取子库 '''
-
-        subs = []
-        for path in self.workspace.local_packages:
-            hg_path = self.get_hg_path(self.root)
-            if path != self.root and path.startswith(hg_path):
-                subs.append(self.get_package(path))
-
-        subs = sorted(subs, cmp = lambda x, y: cmp(len(x.root), len(y.root)))
-
-        return subs
 
     @staticmethod
     def get_hg_path(path):
