@@ -14,6 +14,7 @@ from xml.etree import ElementTree
 from filelistener import FileListener
 import csscompiler
 from csscompiler import CSSCompiler
+# mercurial 会替换sys.stdout导致windows下无法print中文
 stdout = sys.stdout
 import mercurial.commands
 import mercurial.ui
@@ -758,6 +759,7 @@ class Workspace():
         return packages
 
     def fetch(self, package):
+        u''' 将一个package下载到本地工作区 '''
 
         local_path = self.remote2local(package)
         ui = mercurial.ui.ui()
@@ -767,6 +769,7 @@ class Workspace():
         else:
             self.add_package(local_path)
 
+            # 处理父路径
             for parent in package.parents:
                 parent = package.get_package(parent)
                 parent_local_path = os.path.realpath(os.path.join(self.root, parent.hg_dir))
@@ -777,20 +780,21 @@ class Workspace():
                     except:
                         raise FetchException(parent_local_path)
 
-            if not os.path.exists(local_path):
-                try:
-                    mercurial.commands.clone(ui, package.hg_root, local_path)
-                    #print 'clone ' + local_path
-                except:
-                    raise FetchException(local_path)
-            else:
+            # 处理自己
+            if os.path.exists(local_path):
                 try:
                     mercurial.commands.update(ui, mercurial.hg.repository(ui, local_path))
                     #print 'update ' + local_path
                 except:
                     raise FetchException(local_path)
+            else:
+                try:
+                    mercurial.commands.clone(ui, package.hg_root, local_path)
+                    #print 'clone ' + local_path
+                except:
+                    raise FetchException(local_path)
 
-            # 将子库加入workspace
+            # 处理子库，加入workspace
             for sub in package.subs:
                 sub = package.get_package(sub)
                 self.add_package(self.remote2local(sub))
@@ -905,14 +909,10 @@ class RemoteStaticPackage(StaticPackage):
     def load_config(self):
         ''' 解析配置文件 '''
         config_path = urljoin(self.root, CONFIG_FILENAME)
-        try:
-            sock = urllib2.urlopen(config_path)
-        except:
-            print 'error: ' + config_path
-        else:
-            package_config = ElementTree.fromstring(sock.read())
-            self.parse_config(package_config)
-            sock.close()
+        sock = urllib2.urlopen(config_path)
+        package_config = ElementTree.fromstring(sock.read())
+        self.parse_config(package_config)
+        sock.close()
 
     def get_package(self, root_path):
         u''' 从缓存中获取package引用，如果没有则生成新的并加入缓存 '''
