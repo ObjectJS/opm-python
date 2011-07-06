@@ -193,13 +193,18 @@ class StaticPackage():
                     get_sub(local_path)
 
             for url in self.library_folders.values():
+                # url有可能写错了，或者url更改了
                 local_path = self.workspace.url_packages.get(url)
 
-                if local_path not in libs:
-                    libs.append(local_path)
+                if local_path:
+                    if local_path not in libs:
+                        libs.append(local_path)
 
-                if all:
-                    get_sub(local_path)
+                    if all:
+                        get_sub(local_path)
+
+                else:
+                    raise PackageNotFoundException(url)
 
         return libs
 
