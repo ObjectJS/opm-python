@@ -772,18 +772,21 @@ class Workspace():
                 parent_local_path = os.path.realpath(os.path.join(self.root, parent.hg_dir))
                 if not os.path.exists(parent_local_path):
                     try:
-                        mercurial.commands.clone(ui, parent.hg_root, parent_local_path, update = False)
+                        mercurial.commands.clone(mercurial.ui.ui(), parent.hg_root, parent_local_path, noupdate = True)
+                        #print 'clean ' + parent_local_path
                     except:
                         raise FetchException(parent_local_path)
 
             if not os.path.exists(local_path):
                 try:
                     mercurial.commands.clone(ui, package.hg_root, local_path)
+                    #print 'clone ' + local_path
                 except:
                     raise FetchException(local_path)
             else:
                 try:
                     mercurial.commands.update(ui, mercurial.hg.repository(ui, local_path))
+                    #print 'update ' + local_path
                 except:
                     raise FetchException(local_path)
 
