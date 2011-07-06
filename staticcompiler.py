@@ -239,7 +239,8 @@ class StaticPackage():
                 return self.combines[source]
 
         else:
-            return None
+            # 永远返回一个数组
+            return []
 
     def get_combine_included(self, file):
         u''' 某个文件在当前库中被哪些文件引用了 '''
