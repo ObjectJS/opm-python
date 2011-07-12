@@ -263,14 +263,18 @@ def status(publish_path):
         filetype = os.path.splitext(filename)[1]
 
         source, mode = package.parse(filename)
-        rfiles = package.get_relation_files(source, all = True)
-        modified, not_exists = package.listener.check(source, rfiles)
-        if len(modified) or len(not_exists):
-            for modified_file in modified:
-                ui.msg('M ' + modified_file)
+        try:
+            rfiles = package.get_relation_files(source, all = True)
+        except PackageNotFoundException, e:
+            ui.error(u'%s package not found' % e.url)
+        else:
+            modified, not_exists = package.listener.check(filename, rfiles)
+            if len(modified) or len(not_exists):
+                for modified_file in modified:
+                    ui.msg('M ' + modified_file)
 
-            for not_exists_file in not_exists:
-                ui.msg('! ' + not_exists_file)
+                for not_exists_file in not_exists:
+                    ui.msg('! ' + not_exists_file)
 
 @cwdarg
 @usage(u'opm libs [源库路径]')
@@ -292,10 +296,18 @@ def libs(root_path, show_url = False, all = False, reverse = False):
 
     # 显示依赖自己的
     if reverse:
-        libs = package.get_reverse_libs(all = all)
+        try:
+            libs = package.get_reverse_libs(all = all)
+        except PackageNotFoundException, e:
+            ui.error(u'%s package not found' % e.url)
+            return 1
     # 显示依赖了谁
     else:
-        libs = package.get_libs(all = all)
+        try:
+            libs = package.get_libs(all = all)
+        except PackageNotFoundException, e:
+            ui.error(u'%s package not found' % e.url)
+            return 1
 
     if show_url:
         if package.workspace:
