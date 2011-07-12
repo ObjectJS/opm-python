@@ -296,10 +296,18 @@ def libs(root_path, show_url = False, all = False, reverse = False):
 
     # 显示依赖自己的
     if reverse:
-        libs = package.get_reverse_libs(all = all)
+        try:
+            libs = package.get_reverse_libs(all = all)
+        except PackageNotFoundException, e:
+            ui.error(u'%s package not found' % e.url)
+            return 1
     # 显示依赖了谁
     else:
-        libs = package.get_libs(all = all)
+        try:
+            libs = package.get_libs(all = all)
+        except PackageNotFoundException, e:
+            ui.error(u'%s package not found' % e.url)
+            return 1
 
     if show_url:
         if package.workspace:
