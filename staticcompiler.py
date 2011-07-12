@@ -766,7 +766,11 @@ class Workspace():
         ui = mercurial.ui.ui()
 
         if self.has_package(local_path):
-            raise PackageExistsException(local_path)
+            try:
+                mercurial.commands.update(ui, mercurial.hg.repository(ui, local_path))
+                #print 'update ' + local_path
+            except:
+                raise FetchException(local_path)
         else:
             self.add_package(local_path)
 
