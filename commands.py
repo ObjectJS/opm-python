@@ -441,7 +441,7 @@ def serve(workspace_path, fastcgi = False, port = 8080, debug = False, noload = 
             config_file.write(u'[web]\nallow_push=*\npush_ssl=false\nstyle=monoblue\nbaseurl=\n[paths]\n/=%s\n' % os.path.join(workspace.root, '**'))
             config_file.close()
 
-        ui.msg(u'开启hgweb于%s端口' % hgport
+        ui.msg(u'开启hgweb于%s端口' % hgport)
         os.popen('hg serve --webdir-conf %s --daemon' % config_path)
 
     if fastcgi:
