@@ -6,6 +6,7 @@ import ui
 import utils.commandline
 from utils.commandline import arg, cwdarg, option, usage
 from staticcompiler import StaticPackage, Workspace, PublishPackageException, PackageNotFoundException, PackageExistsException, FetchException
+from flup.server.fcgi import WSGIServer
 
 @cwdarg
 @usage(u'scompiler get [源库url]')
@@ -351,7 +352,8 @@ def incs(filename, all = False, reverse = False):
 @option('port', '--port', help = u'指定端口号', type = 'int')
 @option('debug', '-d', '--debug', help = u'debug模式', action = 'store_true')
 @option('noload', '-n', '--noload', help = u'启动时不load工作区', action = 'store_true')
-def serve(workspace_path, fastcgi = False, port = 8080, debug = False, noload = False):
+@option('hg', '--hg', help = u'同时开启hgweb', action = 'store_true')
+def serve(workspace_path, fastcgi = False, port = 8080, debug = False, noload = False, hg = False):
     u''' 启动一个静态服务器
 
 请指定工作区路径'''
@@ -430,9 +432,19 @@ def serve(workspace_path, fastcgi = False, port = 8080, debug = False, noload = 
         start_response('200 OK', [('Content-Type', mimetype)])
         return [open(filename).read()]
 
-    if fastcgi:
-        from flup.server.fcgi import WSGIServer
+    # 启动 hg serve
+    if workspace and hg:
+        hgport = 8000
+        config_path = os.path.join(workspace.root, 'hgweb.config')
+        if not os.path.exists(config_path):
+            config_file = open(config_path, 'w')
+            config_file.write(u'[web]\nallow_push=*\npush_ssl=false\nstyle=monoblue\nbaseurl=\n[paths]\n/=%s\n' % os.path.join(workspace.root, '**'))
+            config_file.close()
 
+        ui.msg(u'开启hgweb于%s端口' % hgport
+        os.popen('hg serve --webdir-conf %s --daemon' % config_path)
+
+    if fastcgi:
         WSGIServer(listen, bindAddress=('localhost', port), debug = debug).run()
     else:
         ui.msg(u'现在还不支持server，请使用 opm serve --fastcgi 方式')

@@ -762,15 +762,34 @@ class Workspace():
     def fetch(self, package):
         u''' 将一个package下载到本地工作区 '''
 
-        local_path = self.remote2local(package)
         ui = mercurial.ui.ui()
 
-        if self.has_package(local_path):
+        # hg update
+        def hg_update(local_path):
             try:
                 mercurial.commands.update(ui, mercurial.hg.repository(ui, local_path))
-                #print 'update ' + local_path
             except:
                 raise FetchException(local_path)
+
+        # hg clone
+        def hg_clone(url, local_path, noupdate = False):
+            try:
+                mercurial.commands.clone(ui, url, local_path, noupdate = noupdate)
+            except:
+                raise FetchException(local_path)
+
+        local_path = self.remote2local(package)
+
+        # 本地已经有这个package了
+        if os.path.exists(local_path):
+            hg_update(local_path)
+
+        # 本地存放的路径有可能与远程并不相同
+        elif package.url in self.url_packages:
+            local_path = self.url_packages[package.url]
+            hg_update(local_path)
+
+        # 本地没有，按照远程的路径获取
         else:
             self.add_package(local_path)
 
@@ -779,25 +798,9 @@ class Workspace():
                 parent = package.get_package(parent)
                 parent_local_path = os.path.realpath(os.path.join(self.root, parent.hg_dir))
                 if not os.path.exists(parent_local_path):
-                    try:
-                        mercurial.commands.clone(mercurial.ui.ui(), parent.hg_root, parent_local_path, noupdate = True)
-                        #print 'clean ' + parent_local_path
-                    except:
-                        raise FetchException(parent_local_path)
+                    hg_clone(parent.hg_root, parent_local_path, noupdate = True)
 
-            # 处理自己
-            if os.path.exists(local_path):
-                try:
-                    mercurial.commands.update(ui, mercurial.hg.repository(ui, local_path))
-                    #print 'update ' + local_path
-                except:
-                    raise FetchException(local_path)
-            else:
-                try:
-                    mercurial.commands.clone(ui, package.hg_root, local_path)
-                    #print 'clone ' + local_path
-                except:
-                    raise FetchException(local_path)
+            hg_clone(package.hg_root, local_path)
 
             # 处理子库，加入workspace
             for sub in package.subs:
