@@ -28,6 +28,9 @@ def get(workspace, url):
         for package in packages:
             try:
                 workspace.fetch(package)
+            except ImportError, e:
+                ui.error(u'mercurial module not found.')
+                return 1
             except FetchException, e:
                 ui.error(u'fetch %s error' % e.root)
             except PackageExistsException, e:
@@ -121,7 +124,7 @@ def link(path, link_path, force = False):
 @option('force', '-f', '--force', help = u'强制编译', action = 'store_true')
 @usage(u'opm publish [源库路径] [发布库路径] [options]')
 def publish(path, publish_path = None, force = False):
-    u'''将整个目录进行发布'''
+    u'''将整个发布库进行编译'''
 
     do_link = False
     # 指定了第二个参数，则path一定是一个源库，第二个参数则是发布库，并自动进行link
@@ -353,8 +356,9 @@ def incs(filename, all = False, reverse = False):
 @option('debug', '-d', '--debug', help = u'debug模式', action = 'store_true')
 @option('noload', '-n', '--noload', help = u'启动时不load工作区', action = 'store_true')
 @option('hg', '--hg', help = u'同时开启hgweb', action = 'store_true')
-def serve(workspace_path, fastcgi = False, port = 8080, debug = False, noload = False, hg = False):
-    u''' 启动一个静态服务器
+@option('hg_port', '--hg-port', help = u'hg serve端口', type='int')
+def serve(workspace_path, fastcgi = False, port = 8080, debug = False, noload = False, hg = False, hg_port = 8000):
+    u''' 启动一个可实时编译的静态服务器
 
 请指定工作区路径'''
 
@@ -434,15 +438,14 @@ def serve(workspace_path, fastcgi = False, port = 8080, debug = False, noload = 
 
     # 启动 hg serve
     if workspace and hg:
-        hgport = 8000
         config_path = os.path.join(workspace.root, 'hgweb.config')
         if not os.path.exists(config_path):
             config_file = open(config_path, 'w')
-            config_file.write(u'[web]\nallow_push=*\npush_ssl=false\nstyle=monoblue\nbaseurl=\n[paths]\n/=%s\n' % os.path.join(workspace.root, '**'))
+            config_file.write(u'[web]\nallow_push=*\npush_ssl=false\nstyle=monoblue\nbaseurl=\n[paths]\n/=**\n')
             config_file.close()
 
-        ui.msg(u'开启hgweb于%s端口' % hgport)
-        os.popen('hg serve --webdir-conf %s --daemon' % config_path)
+        ui.msg(u'已开启hgweb于%s端口' % hg_port)
+        os.popen('hg serve --webdir-conf %s --daemon --port %s' % (config_path, hg_port))
 
     if fastcgi:
         WSGIServer(listen, bindAddress=('localhost', port), debug = debug).run()

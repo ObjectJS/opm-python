@@ -14,12 +14,16 @@ from xml.etree import ElementTree
 from filelistener import FileListener
 import csscompiler
 from csscompiler import CSSCompiler
-# mercurial 会替换sys.stdout导致windows下无法print中文
-stdout = sys.stdout
-import mercurial.commands
-import mercurial.ui
-import mercurial.hg
-sys.stdout = stdout
+
+try:
+    # mercurial 会替换sys.stdout导致windows下无法print中文
+    stdout = sys.stdout
+    import mercurial.commands
+    import mercurial.ui
+    import mercurial.hg
+    sys.stdout = stdout
+except:
+    mercurial = None
 
 DEBUG = False
 CONFIG_FILENAME = 'template-config.xml'
@@ -761,6 +765,9 @@ class Workspace():
 
     def fetch(self, package):
         u''' 将一个package下载到本地工作区 '''
+
+        if not mercurial:
+            raise ImportError()
 
         ui = mercurial.ui.ui()
 
