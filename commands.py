@@ -158,7 +158,11 @@ def load(workspace):
     u''' 加载本地工作区 '''
 
     if workspace.__class__ == str:
-        workspace = Workspace(workspace)
+        workspace_path = Workspace.get_workspace(workspace)
+        if not workspace_path:
+            workspace_path = workspace
+
+        workspace = Workspace(workspace_path)
 
     old_count = len(workspace.local_packages)
     workspace.load()

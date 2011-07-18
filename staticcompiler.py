@@ -15,16 +15,6 @@ from filelistener import FileListener
 import csscompiler
 from csscompiler import CSSCompiler
 
-try:
-    # mercurial 会替换sys.stdout导致windows下无法print中文
-    stdout = sys.stdout
-    import mercurial.commands
-    import mercurial.ui
-    import mercurial.hg
-    sys.stdout = stdout
-except:
-    mercurial = None
-
 DEBUG = False
 CONFIG_FILENAME = 'template-config.xml'
 SOURCE_FILENAME = '.template-info/source'
@@ -766,24 +756,17 @@ class Workspace():
     def fetch(self, package):
         u''' 将一个package下载到本地工作区 '''
 
-        if not mercurial:
-            raise ImportError()
-
-        ui = mercurial.ui.ui()
-
         # hg update
         def hg_update(local_path):
-            try:
-                mercurial.commands.update(ui, mercurial.hg.repository(ui, local_path))
-            except:
-                raise FetchException(local_path)
+            dir = os.path.realpath(os.curdir)
+            os.chdir(local_path)
+            a = os.system('hg update')
+            os.chdir(dir)
 
         # hg clone
         def hg_clone(url, local_path, noupdate = False):
-            try:
-                mercurial.commands.clone(ui, url, local_path, noupdate = noupdate)
-            except:
-                raise FetchException(local_path)
+            print 'hg clone ' + ('--noupdate ' if noupdate else '')  + '%s %s' % (url, local_path)
+            os.system('hg clone ' + ('--noupdate ' if noupdate else '')  + '%s %s' % (url, local_path))
 
         local_path = self.remote2local(package)
 
