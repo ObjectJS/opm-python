@@ -48,10 +48,6 @@ class PackageExistsException(Exception):
     def __init__(self, root_path):
         self.root = root_path
 
-class FetchException(Exception):
-    def __init__(self, root_path):
-        self.root = root_path
-
 class NotInWorkspaceException(Exception):
     pass
 
