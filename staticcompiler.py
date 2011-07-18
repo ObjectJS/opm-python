@@ -44,9 +44,6 @@ def path2uri(path):
     u''' 将windows的path转换成没有协议的uri '''
     return urlparse(path.replace('\\', '/'))[2]
 
-class PublishPackageException(Exception):
-    pass
-
 class PackageExistsException(Exception):
     def __init__(self, root_path):
         self.root = root_path
@@ -613,11 +610,6 @@ class StaticPackage():
         u''' 初始化一个目录为源库 '''
 
         root_path = os.path.realpath(root_path)
-
-        # 确保不要init了一个publish库
-        if StaticPackage.get_publish(root_path):
-            raise PublishPackageException
-
         config_path = os.path.join(root_path, CONFIG_FILENAME)
 
         if os.path.exists(config_path):

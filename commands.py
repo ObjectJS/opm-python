@@ -5,7 +5,7 @@ import sys
 import ui
 import utils.commandline
 from utils.commandline import arg, cwdarg, option, usage
-from staticcompiler import StaticPackage, Workspace, PublishPackageException, PackageNotFoundException, PackageExistsException, FetchException
+from staticcompiler import StaticPackage, Workspace, PackageNotFoundException, PackageExistsException, FetchException
 from flup.server.fcgi import WSGIServer
 
 @cwdarg
@@ -204,14 +204,21 @@ def init(root_path, publish_path = None, force = False):
     u''' 初始化一个新的库
     
 初始化一个新的库，建立template-config.xml配置文件及常用的目录，如果指定了 -p 参数，还可以自动建立与发布目录的连接'''
-    ui.msg(u'初始化%s' % root_path)
-    try:
-        ui.msg(u'创建配置文件')
-        StaticPackage.init(root_path)
 
-    except PublishPackageException:
+    # 确保不要init了一个工作区
+    if Workspace.get_workspace(root_path) == root_path:
+        ui.error(u'工作区不能被初始化')
+        return 1
+
+    # 确保不要init了一个publish库
+    if StaticPackage.get_publish(root_path):
         ui.error(u'发布目录不能被初始化')
         return 1
+
+    ui.msg(u'初始化%s' % root_path)
+    try:
+        StaticPackage.init(root_path)
+        ui.msg(u'创建配置文件')
 
     except PackageExistsException:
         ui.error(u'已经存在')
