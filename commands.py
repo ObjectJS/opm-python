@@ -5,7 +5,7 @@ import sys
 import ui
 import utils.commandline
 from utils.commandline import arg, cwdarg, option, usage
-from staticcompiler import StaticPackage, Workspace, PackageNotFoundException, PackageExistsException, FetchException
+from staticcompiler import StaticPackage, Workspace, PackageNotFoundException, PackageExistsException
 from flup.server.fcgi import WSGIServer
 
 @cwdarg
@@ -31,8 +31,6 @@ def get(workspace, url):
             except ImportError, e:
                 ui.error(u'mercurial module not found.')
                 return 1
-            except FetchException, e:
-                ui.error(u'fetch %s error' % e.root)
             except PackageExistsException, e:
                 ui.error(u'%s package already exists' % e.root)
 
