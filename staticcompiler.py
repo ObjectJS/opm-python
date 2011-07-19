@@ -67,7 +67,7 @@ class StaticPackage():
         self.listener = listener
         self.workspace = workspace
 
-        self.root = root_path # 框架所在本地目录
+        self.root = os.path.realpath(root_path) # 框架所在本地目录
         self.publish_path = publish_path # 发布文件的目录路径
 
         self.source_path = '' # 源文件的目录路径
@@ -681,7 +681,7 @@ class Workspace():
     u''' 工作区 '''
 
     def __init__(self, root):
-        self.root = root
+        self.root = os.path.realpath(root)
         self.packages_file_path = os.path.join(self.root, PACKAGES_FILENAME)
         self.url_packages = {}
         self.local_packages = {}
