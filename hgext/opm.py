@@ -6,54 +6,85 @@ import os
 sys.path.insert(0, os.path.realpath(os.path.join(__file__, '../../')))
 
 import staticcompiler as opm
-from mercurial.i18n import _
+import opm.commands
 from mercurial import hg, commands
+from mercurial import merge as mergemod
 
-def incominghook(ui, repo, source = 'default', **opts):
-    pass
+def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False):
+    u'发布一个库至svn'
+
+    publish_path = ui.config('opm', 'publish-path')
+    publish_branch = ui.config('opm', 'publish-branch', 'default') # 默认作为发布源的分支名称
+
+    # 只有没有commitlog_path参数的时候才生成commitlog
+    if not commitlog_path:
+        commitlog_path = './commitlog.txt'
+        generate_commitlog = True
+    else:
+        generate_commitlog = False
+
+    commitlog_path = os.path.realpath(commitlog_path)
+
+    if not publish_path:
+        ui.warn('%s: no publish path\n' % repo.root)
+        return
+
+    node = repo[node_name]
+    node_branch = node.branch()
+
+    # 不是需要被编译的分支
+    if node_branch != publish_branch:
+        ui.warn('%s: ignore branch %s\n' % (repo.root, node_branch))
+        return
+
+    package = opm.StaticPackage(repo.root)
+
+    # 编译当前库，生成commitlog
+    if generate_commitlog:
+        parent = node.parents()[0].rev()
+        mergemod.update(repo, None, False, False, None)
+        rev = node.rev()
+        ui.write('%s: update version from %s to %s\n' % (repo.root, parent, rev))
+        os.system('hg log -r %s:%s > %s' % (parent, rev, commitlog_path))
+
+    # 更新依赖的库
+    for repo_path in package.get_libs(all=True):
+        sub_repo = hg.repository(ui, repo_path)
+        mergemod.update(sub_repo, None, False, False, None)
+
+    # 编译当前库
+    returnValue = os.popen3('svn update %s --accept theirs-full' % publish_path)[1].read()
+    ui.write('%s: %s updated %s' % (repo.root, publish_path, returnValue))
+    opm.commands.ui.prefix = repo.root + ': '
+    opm.commands.publish(repo.root, publish_path)
+    opm.commands.ui.prefix = ''
+    olddir = os.curdir
+    os.chdir(publish_path)
+    os.popen3('svn add * --force')
+    returnValue = os.popen3('svn commit -F %s' % commitlog_path)[1].read()
+    ui.write('%s: %s commited\n' % (repo.root, publish_path))
+    ui.write(returnValue)
+    os.chdir(olddir)
+
+    # 编译依赖自己的库
+    if not no_depts:
+        for repo_path in package.get_reverse_libs(all=True):
+            sub_repo = hg.repository(ui, repo_path)
+            publish(sub_repo.ui, sub_repo, commitlog_path = commitlog_path, no_depts = True)
+
+    # 删除commitlog
+    if generate_commitlog:
+        os.remove(commitlog_path)
+
+def incominghook(ui, repo, source = '', node = None, **opts):
+    publish(ui, repo, node)
 
 def reposetup(ui, repo):
     ui.setconfig('hooks', 'incoming.autocompile', incominghook)
 
-def compile(publish_path, commit_log_path = None):
-    os.system('svn update %s --accept theirs-full' % publish_path)
-    olddir = os.curdir
-    os.chdir(publish_path)
-    os.system('svn add * --force')
-    #os.system('svn commit -F %s' % commit_log_path)
-    os.chdir(olddir)
-
-def publish(ui, repo, node_name = 'tip', **opts):
-    publish_path = ui.config('opm', 'publish')
-    if publish_path:
-        node = repo[node_name]
-        branch_name = node.branch()
-        if branch_name == 'default':
-            parent = node.parents()[0].rev()
-            hg.update(repo, None)
-            rev = node.rev()
-            ui.write('up %s to %s' % (parent, rev))
-            # hg log -r $parent:$rev > $commitlog
-
-            package = opm.StaticPackage(os.path.realpath('.'))
-
-            # 更新依赖的库
-            for repo in package.get_libs(all=True):
-                commands.update(ui, repo)
-
-            compile(publish_path)
-
-            # 编译依赖自己的库
-            # 编译时并不更新其依赖库
-            for repo_path in package.get_reverse_libs(all=True):
-                repo = hg.repository(repo_path)
-                compile(repo.ui.config('opm', 'publish'))
-
-            # rm $commitlog
-
-
 cmdtable = {
-    "publish": (publish,
-                [],
+    "opm-publish": (publish,
+                [('', 'no-depts', False, '不编译依赖于自己的库'),
+                ('', 'commitlog-path', None, 'svn提交log路径')],
                '[options] [NODE]')
 }
