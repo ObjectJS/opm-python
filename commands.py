@@ -51,14 +51,16 @@ def workspace(root_path):
 def compile(filename, package = None, force = False, no_build_files = False):
     u'编译一个css/js文件'
 
+    filename = os.path.realpath(filename)
+
     if not package:
-        root_path = StaticPackage.get_root(filename)
+        publish_path, root_path = StaticPackage.get_roots(filename)
 
         if not root_path:
             ui.error(u'没有找到源文件')
             return 1
         else:
-            package = StaticPackage(root_path)
+            package = StaticPackage(root_path, publish_path)
 
     try:
         modified, not_exists = package.compile(filename, force = force)
