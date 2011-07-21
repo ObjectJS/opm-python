@@ -420,6 +420,7 @@ class StaticPackage():
 
         modified, notExists = self.listener.update(self.source_path, allFiles)
 
+        files = []
         for file in modified:
             target = os.path.join(self.publish_path, file[len(self.source_path) + 1:])
             target_dir = os.path.dirname(target)
@@ -427,8 +428,9 @@ class StaticPackage():
                 os.makedirs(target_dir)
 
             shutil.copy(file, target)
+            files.append(target)
 
-        return modified
+        return files
 
     def build_resource_files(self):
         # package下的所有资源文件，忽略 lib 目录
@@ -443,6 +445,7 @@ class StaticPackage():
 
         modified, notExists = self.listener.update(self.resource_path, allFiles)
 
+        files = []
         for file in modified:
             resource_publish_path = os.path.realpath(os.path.join(self.publish_path, self.resource_dir))
             target = os.path.join(resource_publish_path, file[len(self.resource_path) + 1:])
@@ -451,8 +454,9 @@ class StaticPackage():
                 os.makedirs(target_dir)
 
             shutil.copy(file, target)
+            files.append(target)
 
-        return modified
+        return files
 
 
     def write_file(self, path, txt):

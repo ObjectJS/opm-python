@@ -8,6 +8,8 @@ sys.path.insert(0, os.path.realpath(os.path.join(__file__, '../../')))
 import opm, commands
 from mercurial import hg, demandimport
 from mercurial import merge as mergemod
+import mercurial.ui
+import time
 
 demandimport.disable()
 
@@ -19,7 +21,7 @@ def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False
 
     # 只有没有commitlog_path参数的时候才生成commitlog
     if not commitlog_path:
-        commitlog_path = './commitlog.txt'
+        commitlog_path = os.path.join(repo.root, './commitlog.txt')
         generate_commitlog = True
     else:
         generate_commitlog = False
@@ -63,14 +65,20 @@ def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False
     os.chdir(publish_path)
     os.popen3('svn add * --force')
     returnValue = os.popen3('svn commit -F %s' % commitlog_path)[1].read()
-    ui.write('%s: %s commited\n' % (repo.root, publish_path))
-    ui.write(returnValue)
+    returnValue = returnValue.strip()
+    if not returnValue:
+        ui.write('%s: nothing to commit.\n' % (repo.root,))
+    else:
+        for line in returnValue.split('\n'):
+            ui.write('%s: %s\n' % (repo.root, line))
+
     os.chdir(olddir)
 
     # 编译依赖自己的库
     if not no_depts:
         for repo_path in package.get_reverse_libs(all=True):
-            sub_repo = hg.repository(ui, repo_path)
+            # 需要新生成一个ui实例进去，否则配置文件会继承
+            sub_repo = hg.repository(mercurial.ui.ui(), repo_path)
             publish(sub_repo.ui, sub_repo, commitlog_path = commitlog_path, no_depts = True)
 
     # 删除commitlog
@@ -78,6 +86,9 @@ def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False
         os.remove(commitlog_path)
 
 def incominghook(ui, repo, source = '', node = None, **opts):
+    a = open('/home/jingwei/fuck', 'w+')
+    a.write(time.ctime())
+    a.close()
     publish(ui, repo, node)
 
 def reposetup(ui, repo):
