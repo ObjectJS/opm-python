@@ -5,7 +5,7 @@ import sys
 import ui
 import utils.commandline
 from utils.commandline import arg, cwdarg, option, usage
-from staticcompiler import StaticPackage, Workspace, PackageNotFoundException, PackageExistsException
+from opm import StaticPackage, Workspace, PackageNotFoundException, PackageExistsException
 from flup.server.fcgi import WSGIServer
 
 @cwdarg
