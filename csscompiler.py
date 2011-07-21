@@ -16,9 +16,6 @@ import cssutils.cssproductions
 import css.cssselectorcompiler as cssselectorcompiler
 import css.cssrulecompiler as cssrulecompiler
 
-reload(cssselectorcompiler)
-reload(cssrulecompiler)
-
 DEVELOPMENT = True
 DEBUG = False
 SUPPORT_COMPILE_MODE = ('std', 'ie6', 'ie7', 'all') # TODO:需要一个 allie 的mode，以避免IE条件注释的bug造成的影响
