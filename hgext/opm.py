@@ -13,11 +13,17 @@ import time
 
 demandimport.disable()
 
+logfile = open('/home/jingwei.li/opm.log', 'w+')
+def log(str):
+    logfile.write(str + '\n')
+    logfile.flush()
+
 def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False):
     u'发布一个库至svn'
 
     publish_path = ui.config('opm', 'publish-path')
     publish_branch = ui.config('opm', 'publish-branch', 'default') # 默认作为发布源的分支名称
+    sys.stdout = ui.fout # 输入导出到客户端
 
     # 只有没有commitlog_path参数的时候才生成commitlog
     if not commitlog_path:
@@ -45,9 +51,10 @@ def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False
     # 编译当前库，生成commitlog
     if generate_commitlog:
         parent = node.parents()[0].rev()
-        mergemod.update(repo, None, False, False, None)
-        rev = node.rev()
+        mergemod.update(repo, node_name, False, False, None)
+        rev = repo['tip'].rev()
         ui.write('%s: update version from %s to %s\n' % (repo.root, parent, rev))
+        os.chdir(repo.root)
         os.system('hg log -r %s:%s > %s' % (parent, rev, commitlog_path))
 
     # 更新依赖的库
@@ -61,7 +68,6 @@ def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False
     commands.ui.prefix = repo.root + ': '
     commands.publish(repo.root, publish_path)
     commands.ui.prefix = ''
-    olddir = os.curdir
     os.chdir(publish_path)
     os.popen3('svn add * --force')
     returnValue = os.popen3('svn commit -F %s' % commitlog_path)[1].read()
@@ -72,13 +78,11 @@ def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False
         for line in returnValue.split('\n'):
             ui.write('%s: %s\n' % (repo.root, line))
 
-    os.chdir(olddir)
-
     # 编译依赖自己的库
     if not no_depts:
         for repo_path in package.get_reverse_libs(all=True):
             # 需要新生成一个ui实例进去，否则配置文件会继承
-            sub_repo = hg.repository(mercurial.ui.ui(), repo_path)
+            sub_repo = hg.repository(ui, repo_path)
             publish(sub_repo.ui, sub_repo, commitlog_path = commitlog_path, no_depts = True)
 
     # 删除commitlog
@@ -86,7 +90,7 @@ def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False
         os.remove(commitlog_path)
 
 def incominghook(ui, repo, source = '', node = None, **opts):
-    a = open('/home/jingwei/fuck', 'w+')
+    a = open('/home/jingwei.li/incoming.log', 'w+')
     a.write(time.ctime())
     a.close()
     publish(ui, repo, node)
