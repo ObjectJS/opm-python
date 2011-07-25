@@ -11,6 +11,8 @@ from mercurial import merge as mergemod
 import mercurial.ui
 import time
 
+# mercurial默认开始demandimport，替换了默认的import动作，将所有import模块变成延时加载，调用时才load
+# 因此cssutils中的一个cssutils.codec模块没有被执行导致出错，在此关闭。
 demandimport.disable()
 
 logfile = open('/home/jingwei.li/opm.log', 'w+')
@@ -23,7 +25,6 @@ def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False
 
     publish_path = ui.config('opm', 'publish-path')
     publish_branch = ui.config('opm', 'publish-branch', 'default') # 默认作为发布源的分支名称
-    sys.stdout = ui.fout # 输入导出到客户端
 
     # 只有没有commitlog_path参数的时候才生成commitlog
     if not commitlog_path:
@@ -64,8 +65,12 @@ def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False
 
     # 编译当前库
     returnValue = os.popen3('svn update %s --accept theirs-full' % publish_path)[1].read()
-    ui.write('%s: %s updated %s' % (repo.root, publish_path, returnValue))
+    returnValue = returnValue.strip()
+    for line in returnValue.split('\n'):
+        ui.write('%s: %s\n' % (repo.root, line))
+
     commands.ui.prefix = repo.root + ': '
+    commands.ui.fout = ui.fout # 输入导出到客户端
     commands.publish(repo.root, publish_path)
     commands.ui.prefix = ''
     os.chdir(publish_path)
