@@ -21,6 +21,7 @@ def log(str):
     logfile.flush()
 
 def runcmd(ui, repo, cmd, empty = ''):
+    ui.write('%s: %s\n' % (repo.root, cmd))
     returnValue = os.popen3(cmd)
     returnValue = returnValue[1].read() + returnValue[2].read() # 输出stdout和stderr
     returnValue = returnValue.strip()
@@ -80,9 +81,7 @@ def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False
     commands.ui.fout = ui.fout # 输入导出到客户端
     commands.publish(repo.root, publish_path)
     commands.ui.prefix = ''
-    os.chdir(publish_path)
-    runcmd(ui, repo, 'svn add * --force')
-    runcmd(ui, repo, 'svn commit -F %s' % commitlog_path, 'nothing to commit.')
+    runcmd(ui, repo, 'svn commit %s -F %s' % (publish_path, commitlog_path), 'nothing to commit.')
 
     # 编译依赖自己的库
     if not no_depts:
