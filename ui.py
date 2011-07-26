@@ -3,13 +3,15 @@
 
 import sys
 
-oldstdout = sys.stdout
+fout = sys.stdout
+
+prefix = '' # 输出所有消息时会带上这个前缀，一般用于被调用时的方便封装
 
 def error(msg):
-    print msg
+    fout.write(prefix + msg + '\n')
 
 def warn(msg):
-    print 'WARN:', msg
+    fout.write(prefix + 'WARN:' + msg + '\n')
 
 def msg(msg):
-    print msg
+    fout.write(prefix + msg + '\n')

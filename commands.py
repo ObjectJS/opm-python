@@ -5,7 +5,7 @@ import sys
 import ui
 import utils.commandline
 from utils.commandline import arg, cwdarg, option, usage
-from staticcompiler import StaticPackage, Workspace, PackageNotFoundException, PackageExistsException
+from opm import StaticPackage, Workspace, PackageNotFoundException, PackageExistsException
 from flup.server.fcgi import WSGIServer
 
 @cwdarg
@@ -143,7 +143,7 @@ def publish(path, publish_path = None, force = False):
         if not package.publish_path:
             ui.msg(u'No publish path.')
         else:
-            ui.msg(u'publish to %s from %s' % (path, package.root))
+            ui.msg(u'publish to %s' % (path,))
             all_files = package.get_publish_files()
             for filename in all_files:
                 compile(filename, package = package, force = force, no_build_files = True)
