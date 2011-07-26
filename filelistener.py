@@ -3,7 +3,7 @@
 
 import os
 import re
-import hashlib
+from urllib import quote_plus, unquote_plus
 
 class FileListener():
     ''' 文件改动监控 '''
@@ -11,10 +11,17 @@ class FileListener():
     def __init__(self, fileInfoPath):
         self.fileInfoPath = fileInfoPath
 
+    def get_files(self):
+        files = []
+        for file in os.listdir(self.fileInfoPath):
+            files.append(unquote_plus(file))
+
+        return files
+
     def writeChanges(self, path, info):
         u''' 将文件改动信息写入到文件中 '''
 
-        hash = hashlib.md5(path).hexdigest()
+        hash = quote_plus(path)
         filename = os.path.join(self.fileInfoPath, hash)
 
         text = ''
@@ -33,7 +40,7 @@ class FileListener():
     def getChanges(self, path):
         ''' 通过缓存文件读取改动配置信息 '''
 
-        hash = hashlib.md5(path).hexdigest()
+        hash = quote_plus(path)
         filename = os.path.join(self.fileInfoPath, hash)
 
         try:

@@ -145,6 +145,7 @@ def publish(path, publish_path = None, force = False):
         else:
             ui.msg(u'publish to %s' % (path,))
             all_files = package.get_publish_files()
+            #all_files = package.listener.get_files()
             for filename in all_files:
                 compile(filename, package = package, force = force, no_build_files = True)
 
