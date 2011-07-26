@@ -20,6 +20,16 @@ def log(str):
     logfile.write(str + '\n')
     logfile.flush()
 
+def runcmd(ui, repo, cmd, empty = ''):
+    returnValue = os.popen3(cmd)
+    returnValue = returnValue[1].read() + returnValue[2].read() # 输出stdout和stderr
+    returnValue = returnValue.strip()
+    if returnValue:
+        for line in returnValue.split('\n'):
+            ui.write('%s: %s\n' % (repo.root, line))
+    elif empty:
+        ui.write('%s: %s\n' % (repo.root, empty))
+
 def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False):
     u'发布一个库至svn'
 
@@ -64,24 +74,15 @@ def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False
         mergemod.update(sub_repo, None, False, False, None)
 
     # 编译当前库
-    returnValue = os.popen3('svn update %s --accept theirs-full' % publish_path)[1].read()
-    returnValue = returnValue.strip()
-    for line in returnValue.split('\n'):
-        ui.write('%s: %s\n' % (repo.root, line))
-
+    
+    runcmd(ui, repo, 'svn update %s --accept theirs-full' % publish_path)
     commands.ui.prefix = repo.root + ': '
     commands.ui.fout = ui.fout # 输入导出到客户端
     commands.publish(repo.root, publish_path)
     commands.ui.prefix = ''
     os.chdir(publish_path)
-    os.popen3('svn add * --force')
-    returnValue = os.popen3('svn commit -F %s' % commitlog_path)[1].read()
-    returnValue = returnValue.strip()
-    if not returnValue:
-        ui.write('%s: nothing to commit.\n' % (repo.root,))
-    else:
-        for line in returnValue.split('\n'):
-            ui.write('%s: %s\n' % (repo.root, line))
+    runcmd(ui, repo, 'svn add * --force')
+    runcmd(ui, repo, 'svn commit -F %s' % commitlog_path, 'nothing to commit.')
 
     # 编译依赖自己的库
     if not no_depts:
