@@ -401,6 +401,9 @@ class StaticPackage():
     def build_files(self):
         u''' 复制相关文件 '''
 
+        if not self.publish_path:
+            return []
+
         files = self.build_source_files()
         if self.resource_path:
             files.extend(self.build_resource_files())
