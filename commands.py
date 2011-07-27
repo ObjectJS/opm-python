@@ -437,7 +437,7 @@ def serve(workspace_path, fastcgi = False, port = 8080, debug = False, noload = 
             ui.error(u'%s package not found' % e.url)
         else:
             # 直接访问源文件时没有publish_path，不进行编译
-            if publish_path and root_path:
+            if root_path:
                 package = StaticPackage(root_path, publish_path, workspace = workspace)
                 compile(filename, package = package, force = force, no_build_files = True)
                 buildfiles(package = package)
