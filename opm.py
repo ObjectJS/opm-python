@@ -311,11 +311,12 @@ class StaticPackage():
 
     def compile(self, filename, force = False):
         filename = os.path.realpath(filename)
-        filetype = os.path.splitext(filename)[1]
-
         source, mode = self.parse(filename)
-        if not source:
+        if not source or not self.publish_path or not filename.startswith(self.publish_path):
             return None, None
+
+        # 确保filename是发布目录的文件，因为传进来的有可能是源文件路径
+        filename = self.publish_path + source[len(self.source_path):]
 
         relation_files = self.get_relation_files(source, all = True)
         if not relation_files:
@@ -324,6 +325,7 @@ class StaticPackage():
 
         modified, not_exists = self.listener.update(filename, relation_files)
 
+        filetype = os.path.splitext(filename)[1]
         if filetype == '.js':
             if force or len(modified):
                 self.combine(filename, relation_files)

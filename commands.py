@@ -122,8 +122,9 @@ def link(path, link_path, force = False):
 @cwdarg
 @arg('publish_path')
 @option('force', '-f', '--force', help = u'强制编译', action = 'store_true')
+@option('rebuild', '-r', '--rebuild', help = u'重建索引库，确保发布文件完整', action = 'store_true')
 @usage(u'opm publish [源库路径] [发布库路径] [options]')
-def publish(path, publish_path = None, force = False):
+def publish(path, publish_path = None, force = False, rebuild = False):
     u'''将整个发布库进行编译'''
 
     do_link = False
@@ -143,8 +144,15 @@ def publish(path, publish_path = None, force = False):
         if not package.publish_path:
             ui.msg(u'No publish path.')
         else:
-            ui.msg(u'publish to %s' % (path,))
-            all_files = package.get_publish_files()
+            ui.msg(u'publish to %s' % (path,) + (' with rebuild' if rebuild else ''))
+
+            if rebuild:
+                # 遍历磁盘目录，慢
+                all_files = package.get_publish_files()
+            else:
+                # 只搜索合并索引，快
+                all_files = package.listener.get_files()
+
             for filename in all_files:
                 compile(filename, package = package, force = force, no_build_files = True)
 
@@ -429,7 +437,7 @@ def serve(workspace_path, fastcgi = False, port = 8080, debug = False, noload = 
             ui.error(u'%s package not found' % e.url)
         else:
             # 直接访问源文件时没有publish_path，不进行编译
-            if publish_path and root_path:
+            if root_path:
                 package = StaticPackage(root_path, publish_path, workspace = workspace)
                 compile(filename, package = package, force = force, no_build_files = True)
                 buildfiles(package = package)
