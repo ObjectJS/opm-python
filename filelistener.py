@@ -13,10 +13,12 @@ class FileListener():
 
     def get_files(self):
         files = []
-        for file in os.listdir(self.fileInfoPath):
-            file = os.path.realpath(unquote_plus(file))
-            if os.path.exists(file):
-                files.append(file)
+
+        if os.path.exists(self.fileInfoPath):
+            for file in os.listdir(self.fileInfoPath):
+                file = os.path.realpath(unquote_plus(file))
+                if os.path.exists(file):
+                    files.append(file)
 
         return files
 

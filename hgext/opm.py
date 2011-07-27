@@ -21,7 +21,7 @@ def log(str):
     logfile.flush()
 
 def runcmd(ui, repo, cmd, empty = ''):
-    ui.write('%s: %s\n' % (repo.root, cmd))
+    #ui.write('%s: %s\n' % (repo.root, cmd))
     returnValue = os.popen3(cmd)
     returnValue = returnValue[1].read() + returnValue[2].read() # 输出stdout和stderr
     returnValue = returnValue.strip()
@@ -31,7 +31,7 @@ def runcmd(ui, repo, cmd, empty = ''):
     elif empty:
         ui.write('%s: %s\n' % (repo.root, empty))
 
-def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False):
+def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False, rebuild = False):
     u'发布一个库至svn'
 
     publish_path = ui.config('opm', 'publish-path')
@@ -79,7 +79,7 @@ def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False
     runcmd(ui, repo, 'svn update %s --accept theirs-full' % publish_path)
     commands.ui.prefix = repo.root + ': '
     commands.ui.fout = ui.fout # 输入导出到客户端
-    commands.publish(repo.root, publish_path)
+    commands.publish(repo.root, publish_path, rebuild = rebuild)
     commands.ui.prefix = ''
     runcmd(ui, repo, 'svn commit %s -F %s' % (publish_path, commitlog_path), 'nothing to commit.')
 
@@ -88,7 +88,7 @@ def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False
         for repo_path in package.get_reverse_libs(all=True):
             # 需要新生成一个ui实例进去，否则配置文件会继承
             sub_repo = hg.repository(ui, repo_path)
-            publish(sub_repo.ui, sub_repo, commitlog_path = commitlog_path, no_depts = True)
+            publish(sub_repo.ui, sub_repo, commitlog_path = commitlog_path, no_depts = True, rebuild = False)
 
     # 删除commitlog
     if generate_commitlog:
@@ -98,7 +98,7 @@ def incominghook(ui, repo, source = '', node = None, **opts):
     a = open('/home/jingwei.li/incoming.log', 'w+')
     a.write(time.ctime())
     a.close()
-    publish(ui, repo, node)
+    publish(ui, repo, node, rebuild = True)
 
 def reposetup(ui, repo):
     ui.setconfig('hooks', 'incoming.autocompile', incominghook)
@@ -106,6 +106,7 @@ def reposetup(ui, repo):
 cmdtable = {
     "opm-publish": (publish,
                 [('', 'no-depts', False, '不编译依赖于自己的库'),
-                ('', 'commitlog-path', None, 'svn提交log路径')],
+                ('', 'commitlog-path', None, 'svn提交log路径'),
+                ('', 'rebuild', False, '完整编译，重建发布文件索引')],
                '[options] [NODE]')
 }

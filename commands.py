@@ -144,7 +144,7 @@ def publish(path, publish_path = None, force = False, rebuild = False):
         if not package.publish_path:
             ui.msg(u'No publish path.')
         else:
-            ui.msg(u'publish to %s' % (path,))
+            ui.msg(u'publish to %s' % (path,) + (' with rebuild' if rebuild else ''))
 
             if rebuild:
                 # 遍历磁盘目录，慢
