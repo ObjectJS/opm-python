@@ -122,8 +122,9 @@ def link(path, link_path, force = False):
 @cwdarg
 @arg('publish_path')
 @option('force', '-f', '--force', help = u'强制编译', action = 'store_true')
+@option('rebuild', '-r', '--rebuild', help = u'重建索引库，确保发布文件完整', action = 'store_true')
 @usage(u'opm publish [源库路径] [发布库路径] [options]')
-def publish(path, publish_path = None, force = False):
+def publish(path, publish_path = None, force = False, rebuild = False):
     u'''将整个发布库进行编译'''
 
     do_link = False
@@ -144,8 +145,14 @@ def publish(path, publish_path = None, force = False):
             ui.msg(u'No publish path.')
         else:
             ui.msg(u'publish to %s' % (path,))
-            all_files = package.get_publish_files()
-            #all_files = package.listener.get_files()
+
+            if rebuild:
+                # 遍历磁盘目录，慢
+                all_files = package.get_publish_files()
+            else:
+                # 只搜索合并索引，快
+                all_files = package.listener.get_files()
+
             for filename in all_files:
                 compile(filename, package = package, force = force, no_build_files = True)
 

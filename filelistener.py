@@ -14,7 +14,9 @@ class FileListener():
     def get_files(self):
         files = []
         for file in os.listdir(self.fileInfoPath):
-            files.append(unquote_plus(file))
+            file = os.path.realpath(unquote_plus(file))
+            if os.path.exists(file):
+                files.append(file)
 
         return files
 
