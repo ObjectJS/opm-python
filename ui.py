@@ -8,10 +8,13 @@ fout = sys.stdout
 prefix = '' # 输出所有消息时会带上这个前缀，一般用于被调用时的方便封装
 
 def error(msg):
-    fout.write(prefix + msg + '\n')
+    sys.stdout = fout
+    print prefix + msg
 
 def warn(msg):
-    fout.write(prefix + 'WARN:' + msg + '\n')
+    sys.stdout = fout
+    print prefix + 'WARN:' + msg
 
 def msg(msg):
-    fout.write(prefix + msg + '\n')
+    sys.stdout = fout
+    print prefix + msg
