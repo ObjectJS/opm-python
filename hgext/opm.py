@@ -34,8 +34,20 @@ def runcmd(ui, repo, cmd, empty = ''):
 def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False, rebuild = False):
     u'发布一个库至svn'
 
+    # 只对静态编译框架维护的库进行操作
+    if not opm.StaticPackage.is_root(repo.root):
+        return
+
     publish_path = ui.config('opm', 'publish-path')
     publish_branch = ui.config('opm', 'publish-branch', 'default') # 默认作为发布源的分支名称
+
+    node = repo[node_name]
+    node_branch = node.branch()
+
+    # 不是需要被编译的分支
+    if node_branch != publish_branch:
+        ui.warn('%s: ignore branch %s\n' % (repo.root, node_branch))
+        return
 
     # 只有没有commitlog_path参数的时候才生成commitlog
     if not commitlog_path:
@@ -46,42 +58,33 @@ def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False
 
     commitlog_path = os.path.realpath(commitlog_path)
 
-    if not publish_path:
-        ui.warn('%s: no publish path\n' % repo.root)
-        return
-
-    node = repo[node_name]
-    node_branch = node.branch()
-
-    # 不是需要被编译的分支
-    if node_branch != publish_branch:
-        ui.warn('%s: ignore branch %s\n' % (repo.root, node_branch))
-        return
-
     package = opm.StaticPackage(repo.root)
 
-    # 编译当前库，生成commitlog
+    parent = node.parents()[0].rev()
+    mergemod.update(repo, node_name, False, False, None)
+
+    # 生成commitlog
     if generate_commitlog:
-        parent = node.parents()[0].rev()
-        mergemod.update(repo, node_name, False, False, None)
         rev = repo['tip'].rev()
         ui.write('%s: update version from %s to %s\n' % (repo.root, parent, rev))
         os.chdir(repo.root)
         os.system('hg log -r %s:%s > %s' % (parent, rev, commitlog_path))
 
-    # 更新依赖的库
-    for repo_path in package.get_libs(all=True):
-        sub_repo = hg.repository(ui, repo_path)
-        mergemod.update(sub_repo, None, False, False, None)
+    if not publish_path:
+        ui.warn('%s: no publish path\n' % repo.root)
+    else:
+        # 更新依赖的库
+        for repo_path in package.get_libs(all=True):
+            sub_repo = hg.repository(ui, repo_path)
+            mergemod.update(sub_repo, None, False, False, None)
 
-    # 编译当前库
-    
-    runcmd(ui, repo, 'svn update %s --accept theirs-full' % publish_path)
-    commands.ui.prefix = repo.root + ': '
-    commands.ui.fout = ui.fout # 输入导出到客户端
-    commands.publish(repo.root, publish_path, rebuild = rebuild)
-    commands.ui.prefix = ''
-    runcmd(ui, repo, 'svn commit %s -F %s' % (publish_path, commitlog_path), 'nothing to commit.')
+        # 编译当前库
+        runcmd(ui, repo, 'svn update %s --accept theirs-full' % publish_path)
+        commands.ui.prefix = repo.root + ': '
+        commands.ui.fout = ui.fout # 输入导出到客户端
+        commands.publish(repo.root, publish_path, rebuild = rebuild)
+        commands.ui.prefix = ''
+        runcmd(ui, repo, 'svn commit %s -F %s' % (publish_path, commitlog_path), 'nothing to commit.')
 
     # 编译依赖自己的库
     if not no_depts:
@@ -98,6 +101,7 @@ def incominghook(ui, repo, source = '', node = None, **opts):
     a = open('/home/jingwei.li/incoming.log', 'w+')
     a.write(time.ctime())
     a.close()
+
     publish(ui, repo, node, rebuild = True)
 
 def reposetup(ui, repo):
