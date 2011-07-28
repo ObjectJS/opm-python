@@ -1,1 +1,0 @@
-python ../staticserver.py --debug --port 81
