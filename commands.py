@@ -12,7 +12,10 @@ from flup.server.fcgi import WSGIServer
 @usage(u'scompiler get [源库url]')
 @arg('url')
 def get(workspace, url):
-    u''' 从公共代码库获取源库 '''
+    u''' 从公共代码库获取源库
+
+ 当前目录会被作为工作区，所有获取到的源库代码都会放到此工作区内
+    '''
 
     if workspace.__class__ == str:
         workspace = Workspace(workspace)
