@@ -5,7 +5,7 @@ import sys
 import ui
 import utils.commandline
 from utils.commandline import arg, cwdarg, option, usage
-from opm import StaticPackage, Workspace, PackageNotFoundException, PackageExistsException
+from opm import StaticPackage, Workspace, PackageNotFoundException, PackageExistsException, ConfigError
 from flup.server.fcgi import WSGIServer
 
 @cwdarg
@@ -173,7 +173,11 @@ def load(workspace):
         if not workspace_path:
             workspace_path = workspace
 
-        workspace = Workspace(workspace_path)
+        try:
+            workspace = Workspace(workspace_path)
+        except ConfigError as e:
+            ui.error(u'config error %s' % e.path)
+            return 1
 
     old_count = len(workspace.local_packages)
     workspace.load()

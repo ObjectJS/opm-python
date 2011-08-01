@@ -57,6 +57,10 @@ class PackageNotFoundException(Exception):
 class WorkspaceNotFoundException(Exception):
     pass
 
+class ConfigError(Exception):
+    def __init__(self, path):
+        self.path = path
+
 class StaticPackage():
     u''' 静态编译库 '''
 
@@ -714,10 +718,14 @@ class Workspace():
             if not os.path.exists(config_path):
                 self.useless_packages.append(local_path)
             else:
-                package_config = ElementTree.parse(config_path)
-                package_url = package_config.getroot().get('url')
-                self.local_packages[local_path] = package_url
-                if package_url: self.url_packages[package_url] = local_path
+                try:
+                    package_config = ElementTree.parse(config_path)
+                except BaseException as e:
+                    raise ConfigError(config_path)
+                else:
+                    package_url = package_config.getroot().get('url')
+                    self.local_packages[local_path] = package_url
+                    if package_url: self.url_packages[package_url] = local_path
 
     def remote2local(self, package):
         u''' 将一个remotepackage的地址转换成当在本地时的地址 '''
