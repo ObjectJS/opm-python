@@ -425,7 +425,7 @@ def serve(workspace_path, fastcgi = False, port = 8080, debug = False, noload = 
 
     def listen(environ, start_response):
         ''' 监听请求 '''
-        if environ['DOCUMENT_URI'].endswith('/fuck.css'):
+        if environ['DOCUMENT_URI'].endswith('/net.test'):
             return print_request(environ, start_response)
 
         DEBUG = debug
