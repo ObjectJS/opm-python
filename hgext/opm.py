@@ -15,7 +15,7 @@ import time
 # 因此cssutils中的一个cssutils.codec模块没有被执行导致出错，在此关闭。
 demandimport.disable()
 
-logfile = open('/home/jingwei.li/opm.log', 'w+')
+logfile = open('/opt/workspace/opm.log', 'w+')
 def log(str):
     logfile.write(str + '\n')
     logfile.flush()
@@ -98,7 +98,7 @@ def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False
         os.remove(commitlog_path)
 
 def incominghook(ui, repo, source = '', node = None, **opts):
-    a = open('/home/jingwei.li/incoming.log', 'w+')
+    a = open('/opt/workspace/incoming.log', 'w+')
     a.write(time.ctime())
     a.close()
 
