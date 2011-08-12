@@ -18,7 +18,11 @@ def get(workspace, url):
     '''
 
     if workspace.__class__ == str:
-        workspace = Workspace(workspace)
+        try:
+            workspace = Workspace(workspace)
+        except ConfigError as e:
+            ui.error(u'config error %s' % e.path)
+            return 1
 
     load(workspace)
 
@@ -26,6 +30,9 @@ def get(workspace, url):
         packages = workspace.fetch_packages(url)
     except PackageNotFoundException, e:
         ui.error('%s package not found' % e.url)
+        return 1
+    except ConfigError as e:
+        ui.error(u'config error %s' % e.path)
         return 1
     else:
         for package in packages:

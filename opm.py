@@ -875,11 +875,15 @@ class RemoteWorkspace(Workspace):
             except:
                 self.useless_packages.append(remote_path)
             else:
-                package_config = ElementTree.fromstring(sock.read())
-                package_url = package_config.get('url')
-                self.local_packages[remote_path] = package_url
-                if package_url: self.url_packages[package_url] = remote_path
-                sock.close()
+                try:
+                    package_config = ElementTree.fromstring(sock.read())
+                except BaseException as e:
+                    raise ConfigError(config_path)
+                else:
+                    package_url = package_config.get('url')
+                    self.local_packages[remote_path] = package_url
+                    if package_url: self.url_packages[package_url] = remote_path
+                    sock.close()
 
         sock.close()
 
