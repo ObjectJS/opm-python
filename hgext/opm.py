@@ -79,7 +79,7 @@ def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False
             mergemod.update(sub_repo, None, False, False, None)
 
         # 编译当前库
-        runcmd(ui, repo, 'svn update %s --accept theirs-full' % publish_path)
+        runcmd(ui, repo, 'svn update %s --force --accept theirs-full' % publish_path)
         commands.ui.prefix = repo.root + ': '
         commands.ui.fout = ui.fout # 输入导出到客户端
         commands.publish(repo.root, publish_path, rebuild = rebuild)
