@@ -387,7 +387,7 @@ def incs(filename, all = False, reverse = False):
 @option('fastcgi', '--fastcgi', help = u'使用fastcgi进行serve', action = 'store_true')
 @option('port', '--port', help = u'指定端口号', type = 'int')
 @option('debug', '-d', '--debug', help = u'debug模式', action = 'store_true')
-@option('noload', '-n', '--noload', help = u'启动时不load工作区', action = 'store_true')
+@option('noload', '-L', '--noload', help = u'启动时不load工作区', action = 'store_true')
 @option('hg', '--hg', help = u'同时开启hgweb', action = 'store_true')
 @option('hg_port', '--hg-port', help = u'hg serve端口', type='int')
 def serve(workspace_path, fastcgi = False, port = 8080, debug = False, noload = False, hg = False, hg_port = 8000):
