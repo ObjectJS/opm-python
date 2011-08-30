@@ -31,33 +31,8 @@ def runcmd(ui, repo, cmd, empty = ''):
     elif empty:
         ui.write('%s: %s\n' % (repo.root, empty))
 
-def publish(ui, repo, commitlog_path = None, no_depts = False, rebuild = False):
+def publish(ui, repo, commitlog_path, rebuild = False):
     u'发布一个库至svn'
-
-    # 只对静态编译框架维护的库进行操作
-    if not opm.StaticPackage.is_root(repo.root):
-        return
-
-    # 只有没有commitlog_path参数的时候才生成commitlog
-    if not commitlog_path:
-        commitlog_path = os.path.join(repo.root, './commitlog.txt')
-        generate_commitlog = True
-    else:
-        generate_commitlog = False
-        pass
-    commitlog_path = os.path.realpath(commitlog_path)
-
-    # update当前库
-    mergemod.update(repo, None, False, False, None)
-
-    # 生成commitlog
-    if generate_commitlog:
-        node = repo['tip']
-        parent = node.parents()[0].rev()
-        rev = node.rev()
-        ui.write('%s: update version from %s to %s\n' % (repo.root, parent, rev))
-        os.chdir(repo.root)
-        os.system('hg log -r %s:%s > %s' % (parent, rev, commitlog_path))
 
     # 编译当前库
     publish_path = ui.config('opm', 'publish-path')
@@ -73,39 +48,53 @@ def publish(ui, repo, commitlog_path = None, no_depts = False, rebuild = False):
         commands.ui.prefix = ''
         runcmd(ui, repo, 'svn commit %s -F %s' % (publish_path, commitlog_path), 'nothing to commit.')
 
-    # 编译依赖自己的库
-    if not no_depts:
-        package = opm.StaticPackage(repo.root)
-        for repo_path in package.get_reverse_libs(all=True):
-            # 需要新生成一个ui实例进去，否则配置文件会继承
-            sub_repo = hg.repository(ui, repo_path)
-            publish(sub_repo.ui, sub_repo, commitlog_path = commitlog_path, no_depts = True, rebuild = False)
+def main(ui, repo, source = '', node = 'tip', **opts):
 
-    # 删除commitlog
-    if generate_commitlog:
-        os.remove(commitlog_path)
+    # 只对静态编译框架维护的库进行操作
+    if not opm.StaticPackage.is_root(repo.root):
+        return
 
-def incominghook(ui, repo, source = '', node = None, **opts):
     #a = open('/opt/workspace/incoming.log', 'w+')
     #a.write(time.ctime())
     #a.close()
 
     publish_branch = ui.config('opm', 'publish-branch', 'default') # 默认作为发布源的分支名称
-    node_branch = repo[node].branch()
+    node = repo[node]
+    node_branch = node.branch()
 
     # 不是需要被编译的分支
     if node_branch != publish_branch:
         ui.warn('%s: ignore branch %s\n' % (repo.root, node_branch))
-    else:
-        publish(ui, repo, rebuild = True)
+        return
+
+    # update当前库
+    mergemod.update(repo, None, False, False, None)
+
+    # 生成commitlog
+    commitlog_path = os.path.realpath(os.path.join(repo.root, './commitlog.txt'))
+    parent = node.parents()[0].rev()
+    rev = node.rev()
+    ui.write('%s: update version from %s to %s\n' % (repo.root, parent, rev))
+    os.chdir(repo.root)
+    os.system('hg log -r %s:%s > %s' % (parent, rev, commitlog_path))
+
+    # 编译自己
+    publish(ui, repo, commitlog_path, rebuild = True)
+
+    # 编译依赖自己的库
+    package = opm.StaticPackage(repo.root)
+    for repo_path in package.get_reverse_libs(all=True):
+        sub_repo = hg.repository(ui, repo_path)
+        publish(sub_repo.ui, sub_repo, commitlog_path, rebuild = False)
+
+    # 删除commitlog
+    os.remove(commitlog_path)
 
 def reposetup(ui, repo):
-    ui.setconfig('hooks', 'incoming.autocompile', incominghook)
+    ui.setconfig('hooks', 'incoming.autocompile', main)
 
 cmdtable = {
-    "opm-publish": (publish,
-                [('', 'no-depts', False, '不编译依赖于自己的库'),
-                ('', 'commitlog-path', None, 'svn提交log路径'),
-                ('', 'rebuild', False, '完整编译，重建发布文件索引')],
+    "opm-publish": (main,
+                [],
                '[options] [NODE]')
 }
