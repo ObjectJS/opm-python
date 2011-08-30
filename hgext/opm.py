@@ -48,7 +48,7 @@ def publish(ui, repo, commitlog_path, rebuild = False):
         commands.ui.prefix = ''
         runcmd(ui, repo, 'svn commit %s -F %s' % (publish_path, commitlog_path), 'nothing to commit.')
 
-def main(ui, repo, source = '', node = 'tip', **opts):
+def main(ui, repo, source = '', node = 'default', **opts):
 
     # 只对静态编译框架维护的库进行操作
     if not opm.StaticPackage.is_root(repo.root):
