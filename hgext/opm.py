@@ -31,22 +31,11 @@ def runcmd(ui, repo, cmd, empty = ''):
     elif empty:
         ui.write('%s: %s\n' % (repo.root, empty))
 
-def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False, rebuild = False):
+def publish(ui, repo, commitlog_path = None, no_depts = False, rebuild = False):
     u'发布一个库至svn'
 
     # 只对静态编译框架维护的库进行操作
     if not opm.StaticPackage.is_root(repo.root):
-        return
-
-    publish_path = ui.config('opm', 'publish-path')
-    publish_branch = ui.config('opm', 'publish-branch', 'default') # 默认作为发布源的分支名称
-
-    node = repo[node_name]
-    node_branch = node.branch()
-
-    # 不是需要被编译的分支
-    if node_branch != publish_branch:
-        ui.warn('%s: ignore branch %s\n' % (repo.root, node_branch))
         return
 
     # 只有没有commitlog_path参数的时候才生成commitlog
@@ -55,29 +44,27 @@ def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False
         generate_commitlog = True
     else:
         generate_commitlog = False
-
+        pass
     commitlog_path = os.path.realpath(commitlog_path)
 
-    package = opm.StaticPackage(repo.root)
-
-    parent = node.parents()[0].rev()
-    mergemod.update(repo, node_name, False, False, None)
+    # update当前库
+    mergemod.update(repo, None, False, False, None)
 
     # 生成commitlog
     if generate_commitlog:
-        rev = repo['tip'].rev()
+        node = repo['tip']
+        parent = node.parents()[0].rev()
+        rev = node.rev()
         ui.write('%s: update version from %s to %s\n' % (repo.root, parent, rev))
         os.chdir(repo.root)
         os.system('hg log -r %s:%s > %s' % (parent, rev, commitlog_path))
 
+    # 编译当前库
+    publish_path = ui.config('opm', 'publish-path')
+
     if not publish_path:
         ui.warn('%s: no publish path\n' % repo.root)
     else:
-        # 更新依赖的库
-        for repo_path in package.get_libs(all=True):
-            sub_repo = hg.repository(ui, repo_path)
-            mergemod.update(sub_repo, None, False, False, None)
-
         # 编译当前库
         runcmd(ui, repo, 'svn update %s --force --accept theirs-full' % publish_path)
         commands.ui.prefix = repo.root + ': '
@@ -88,6 +75,7 @@ def publish(ui, repo, node_name = 'tip', commitlog_path = None, no_depts = False
 
     # 编译依赖自己的库
     if not no_depts:
+        package = opm.StaticPackage(repo.root)
         for repo_path in package.get_reverse_libs(all=True):
             # 需要新生成一个ui实例进去，否则配置文件会继承
             sub_repo = hg.repository(ui, repo_path)
@@ -102,7 +90,16 @@ def incominghook(ui, repo, source = '', node = None, **opts):
     #a.write(time.ctime())
     #a.close()
 
-    publish(ui, repo, node, rebuild = True)
+    publish_branch = ui.config('opm', 'publish-branch', 'default') # 默认作为发布源的分支名称
+
+    node = repo['tip']
+    node_branch = node.branch()
+
+    # 不是需要被编译的分支
+    if node_branch != publish_branch:
+        ui.warn('%s: ignore branch %s\n' % (repo.root, node_branch))
+    else:
+        publish(ui, repo, node, rebuild = True)
 
 def reposetup(ui, repo):
     ui.setconfig('hooks', 'incoming.autocompile', incominghook)
