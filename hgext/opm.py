@@ -91,15 +91,13 @@ def incominghook(ui, repo, source = '', node = None, **opts):
     #a.close()
 
     publish_branch = ui.config('opm', 'publish-branch', 'default') # 默认作为发布源的分支名称
-
-    node = repo['tip']
-    node_branch = node.branch()
+    node_branch = repo[node].branch()
 
     # 不是需要被编译的分支
     if node_branch != publish_branch:
         ui.warn('%s: ignore branch %s\n' % (repo.root, node_branch))
     else:
-        publish(ui, repo, node, rebuild = True)
+        publish(ui, repo, rebuild = True)
 
 def reposetup(ui, repo):
     ui.setconfig('hooks', 'incoming.autocompile', incominghook)
