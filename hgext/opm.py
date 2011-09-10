@@ -76,7 +76,7 @@ def main(ui, repo, source = '', node = 'default', **opts):
     rev = node.rev()
     ui.write('%s: update version from %s to %s\n' % (repo.root, parent, rev))
     os.chdir(repo.root)
-    os.system('hg log -r %s:%s > %s' % (parent, rev, commitlog_path))
+    os.system('hg log -b %s -r %s:%s > %s' % (node_branch, parent, rev, commitlog_path))
 
     # 编译自己
     publish(ui, repo, commitlog_path, rebuild = True)
