@@ -714,18 +714,7 @@ class Workspace():
         for package_path in lines:
             package_path, publish_path = re.match('^(.+?)\s*(?:=\s*(.+)?)?$', package_path.strip()).groups()
             local_path = os.path.realpath(os.path.join(self.root, package_path))
-            config_path = os.path.join(local_path, CONFIG_FILENAME)
-            if not os.path.exists(config_path):
-                self.useless_packages.append(local_path)
-            else:
-                try:
-                    package_config = ElementTree.parse(config_path)
-                except BaseException as e:
-                    raise ConfigError(config_path)
-                else:
-                    package_url = package_config.getroot().get('url')
-                    self.local_packages[local_path] = package_url
-                    if package_url: self.url_packages[package_url] = local_path
+            self.add_package(local_path)
 
     def remote2local(self, package):
         u''' 将一个remotepackage的地址转换成当在本地时的地址 '''
@@ -770,7 +759,7 @@ class Workspace():
 
         # hg clone
         def hg_clone(url, local_path, noupdate = False):
-            print 'hg clone ' + ('--noupdate ' if noupdate else '')  + '%s %s' % (url, local_path)
+            #print 'hg clone ' + ('--noupdate ' if noupdate else '')  + '%s %s' % (url, local_path)
             os.system('hg clone ' + ('--noupdate ' if noupdate else '')  + '%s %s' % (url, local_path))
 
         local_path = self.remote2local(package)
@@ -820,13 +809,24 @@ class Workspace():
         root_path = os.path.realpath(root_path)
         return root_path in self.local_packages.keys()
 
-    def add_package(self, root_path):
-        root_path = os.path.realpath(root_path)
-        if not root_path.startswith(os.path.realpath(self.root)):
+    def add_package(self, local_path):
+        local_path = os.path.realpath(local_path)
+        if not local_path.startswith(os.path.realpath(self.root)):
             raise NotInWorkspaceException
 
-        self.local_packages[root_path] = None
-        self.rebuild_package()
+        config_path = os.path.join(local_path, CONFIG_FILENAME)
+        if not os.path.exists(config_path):
+            self.useless_packages.append(local_path)
+        else:
+            try:
+                package_config = ElementTree.parse(config_path)
+            except BaseException as e:
+                raise ConfigError(config_path)
+            else:
+                package_url = package_config.getroot().get('url')
+                self.local_packages[local_path] = package_url
+                if package_url: self.url_packages[package_url] = local_path
+                self.rebuild_package()
 
     def rebuild_package(self):
         # 不要在fastcgi中rebuild_package，因为没有文件锁，会出问题，给出提示即可。
@@ -876,7 +876,7 @@ class RemoteWorkspace(Workspace):
                 self.useless_packages.append(remote_path)
             else:
                 try:
-                    package_config = ElementTree.fromstring(sock.read())
+                    package_config = ElementTree.fromstring(sock.read().encode('utf-8'))
                 except BaseException as e:
                     raise ConfigError(config_path)
                 else:
@@ -917,7 +917,7 @@ class RemoteStaticPackage(StaticPackage):
         ''' 解析配置文件 '''
         config_path = urljoin(self.root, CONFIG_FILENAME)
         sock = urllib2.urlopen(config_path)
-        package_config = ElementTree.fromstring(sock.read())
+        package_config = ElementTree.fromstring(sock.read().encode('utf-8'))
         self.parse_config(package_config)
         sock.close()
 
