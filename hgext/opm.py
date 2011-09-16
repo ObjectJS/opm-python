@@ -16,7 +16,7 @@ import time
 
 # mercurial默认开始demandimport，替换了默认的import动作，将所有import模块变成延时加载，调用时才load
 # 因此cssutils中的一个cssutils.codec模块没有被执行导致出错，在此关闭。
-#demandimport.disable()
+demandimport.disable()
 
 def runcmd(ui, repo, cmd, empty = ''):
     #ui.write('%s: %s\n' % (repo.root, cmd))
