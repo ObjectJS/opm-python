@@ -8,17 +8,15 @@ sys.path.insert(0, os.path.realpath(os.path.join(__file__, '../../')))
 import opm, commands
 from mercurial import hg, demandimport
 from mercurial import merge as mergemod
+from mercurial.i18n import _
 import mercurial.ui
+import mercurial.commands
+import mercurial.extensions
 import time
 
 # mercurial默认开始demandimport，替换了默认的import动作，将所有import模块变成延时加载，调用时才load
 # 因此cssutils中的一个cssutils.codec模块没有被执行导致出错，在此关闭。
-demandimport.disable()
-
-#logfile = open('/opt/workspace/opm.log', 'w+')
-#def log(str):
-    #logfile.write(str + '\n')
-    #logfile.flush()
+#demandimport.disable()
 
 def runcmd(ui, repo, cmd, empty = ''):
     #ui.write('%s: %s\n' % (repo.root, cmd))
@@ -31,7 +29,7 @@ def runcmd(ui, repo, cmd, empty = ''):
     elif empty:
         ui.write('%s: %s\n' % (repo.root, empty))
 
-def publish(ui, repo, commitlog_path, rebuild = False):
+def _publish(ui, repo, commitlog_path, rebuild = False):
     u'发布一个库至svn'
 
     # 编译当前库
@@ -48,15 +46,11 @@ def publish(ui, repo, commitlog_path, rebuild = False):
         commands.ui.prefix = ''
         runcmd(ui, repo, 'svn commit %s -F %s' % (publish_path, commitlog_path), 'nothing to commit.')
 
-def main(ui, repo, source = '', node = 'default', **opts):
+def publish(ui, repo, source = '', node = 'default', **opts):
 
     # 只对静态编译框架维护的库进行操作
     if not opm.StaticPackage.is_root(repo.root):
         return
-
-    #a = open('/opt/workspace/incoming.log', 'w+')
-    #a.write(time.ctime())
-    #a.close()
 
     publish_branch = ui.config('opm', 'publish-branch', 'default') # 默认作为发布源的分支名称
     node = repo[node]
@@ -79,22 +73,42 @@ def main(ui, repo, source = '', node = 'default', **opts):
     os.system('hg log -b %s -r %s:%s > %s' % (node_branch, parent, rev, commitlog_path))
 
     # 编译自己
-    publish(ui, repo, commitlog_path, rebuild = True)
+    _publish(ui, repo, commitlog_path, rebuild = True)
 
     # 编译依赖自己的库
     package = opm.StaticPackage(repo.root)
     for repo_path in package.get_reverse_libs(all=True):
         sub_repo = hg.repository(ui, repo_path)
-        publish(sub_repo.ui, sub_repo, commitlog_path, rebuild = False)
+        _publish(sub_repo.ui, sub_repo, commitlog_path, rebuild = False)
 
     # 删除commitlog
     os.remove(commitlog_path)
 
+def pullwrapper(orig, *args, **kwargs):
+    result = orig(*args, **kwargs)
+    if kwargs['depts']:
+        pull(*args, **kwargs)
+    return result
+
+def pull(ui, repo, *args, **kwargs):
+    package = opm.StaticPackage(repo.root)
+    for repo_path in package.get_libs(all=True):
+        sub_repo = hg.repository(ui, repo_path)
+        mercurial.commands.pull(sub_repo.ui, sub_repo, *args, **kwargs)
+
 def reposetup(ui, repo):
-    ui.setconfig('hooks', 'incoming.autocompile', main)
+    ui.setconfig('hooks', 'incoming.autocompile', publish)
+
+def uisetup(ui):
+    '''Initialize the extension.'''
+
+    #wrap pull
+    entry = mercurial.extensions.wrapcommand(mercurial.commands.table, 'pull', pullwrapper)
+    entry[1].append(('D', 'depts', None, _('pull dependencies')))
 
 cmdtable = {
-    "opm-publish": (main,
+    'opm-publish': (publish,
                 [],
                '[options] [NODE]')
 }
+

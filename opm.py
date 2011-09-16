@@ -51,8 +51,9 @@ class NotInWorkspaceException(Exception):
     pass
 
 class PackageNotFoundException(Exception):
-    def __init__(self, package_url):
+    def __init__(self, package_url, caller_root = None):
         self.url = package_url
+        self.caller = caller_root
 
 class WorkspaceNotFoundException(Exception):
     pass
@@ -195,7 +196,7 @@ class StaticPackage():
                         get_sub(local_path)
 
                 else:
-                    raise PackageNotFoundException(url)
+                    raise PackageNotFoundException(url, self.root)
 
         return libs
 
@@ -568,7 +569,7 @@ class StaticPackage():
                         return os.path.realpath(new_path)
                     # 在lib下，也定义了folder，但是相对应的url没有在packages中配置本地磁盘的路径，或者相应的库没有配置package的url属性
                     else:
-                        raise PackageNotFoundException(url)
+                        raise PackageNotFoundException(url, self.root)
 
         return includePath
 
@@ -726,7 +727,7 @@ class Workspace():
         remote_workspace = RemoteWorkspace(self.remote_server)
 
         if package_url not in remote_workspace.url_packages.keys():
-            raise PackageNotFoundException(package_url)
+            raise PackageNotFoundException(package_url, self.root)
 
         path = remote_workspace.url_packages[package_url]
         package = RemoteStaticPackage(path, workspace = remote_workspace)
