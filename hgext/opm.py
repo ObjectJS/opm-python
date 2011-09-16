@@ -49,7 +49,7 @@ def _publish(ui, repo, commitlog_path, rebuild = False):
 def publish(ui, repo, source = '', node = 'default', **opts):
 
     # 只对静态编译框架维护的库进行操作
-    if not opm.StaticPackage.is_root(repo.root):
+    if not opm.StaticPackage.is_root(repo.root) or source == 'pull':
         return
 
     publish_branch = ui.config('opm', 'publish-branch', 'default') # 默认作为发布源的分支名称
