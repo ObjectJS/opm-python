@@ -877,7 +877,7 @@ class RemoteWorkspace(Workspace):
                 self.useless_packages.append(remote_path)
             else:
                 try:
-                    package_config = ElementTree.fromstring(sock.read().encode('utf-8'))
+                    package_config = ElementTree.fromstring(sock.read())
                 except BaseException as e:
                     raise ConfigError(config_path)
                 else:
@@ -918,7 +918,7 @@ class RemoteStaticPackage(StaticPackage):
         ''' 解析配置文件 '''
         config_path = urljoin(self.root, CONFIG_FILENAME)
         sock = urllib2.urlopen(config_path)
-        package_config = ElementTree.fromstring(sock.read().encode('utf-8'))
+        package_config = ElementTree.fromstring(sock.read())
         self.parse_config(package_config)
         sock.close()
 
