@@ -16,7 +16,7 @@ import time
 
 # mercurial默认开始demandimport，替换了默认的import动作，将所有import模块变成延时加载，调用时才load
 # 因此cssutils中的一个cssutils.codec模块没有被执行导致出错，在此关闭。
-#demandimport.disable()
+demandimport.disable()
 
 def runcmd(ui, repo, cmd, empty = ''):
     #ui.write('%s: %s\n' % (repo.root, cmd))
@@ -49,7 +49,7 @@ def _publish(ui, repo, commitlog_path, rebuild = False):
 def publish(ui, repo, source = '', node = 'default', **opts):
 
     # 只对静态编译框架维护的库进行操作
-    if not opm.StaticPackage.is_root(repo.root):
+    if not opm.StaticPackage.is_root(repo.root) or source == 'pull':
         return
 
     publish_branch = ui.config('opm', 'publish-branch', 'default') # 默认作为发布源的分支名称
