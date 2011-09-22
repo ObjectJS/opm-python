@@ -4,6 +4,8 @@
 import sys
 import os
 sys.path.insert(0, os.path.realpath(os.path.join(__file__, '../../')))
+for p in os.environ.get('PYTHONPATH', '').split(';'):
+    sys.path.append(p)
 
 import opm, commands
 from mercurial import hg, demandimport
