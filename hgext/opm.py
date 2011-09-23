@@ -7,18 +7,20 @@ sys.path.insert(0, os.path.realpath(os.path.join(__file__, '../../')))
 for p in os.environ.get('PYTHONPATH', '').split(';'):
     sys.path.append(p)
 
-import opm, commands
+
+# mercurial默认开始demandimport，替换了默认的import动作，将所有import模块变成延时加载，调用时才load
+# 因此cssutils中的一个cssutils.codec模块没有被执行导致出错，在此关闭。
 from mercurial import hg, demandimport
+demandimport.disable()
+import opm, commands
+demandimport.enable()
+
 from mercurial import merge as mergemod
 from mercurial.i18n import _
 import mercurial.ui
 import mercurial.commands
 import mercurial.extensions
 import time
-
-# mercurial默认开始demandimport，替换了默认的import动作，将所有import模块变成延时加载，调用时才load
-# 因此cssutils中的一个cssutils.codec模块没有被执行导致出错，在此关闭。
-demandimport.disable()
 
 def runcmd(ui, repo, cmd, empty = ''):
     #ui.write('%s: %s\n' % (repo.root, cmd))
