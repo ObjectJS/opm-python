@@ -89,7 +89,7 @@ def compile(filename, package = None, force = False, no_build_files = False):
 
     # 未被维护的文件
     elif modified == None:
-        ui.msg(u'Not Found: %s' % filename)
+        ui.msg(u'No Source: %s' % filename)
 
     if not no_build_files:
         buildfiles(package = package)
