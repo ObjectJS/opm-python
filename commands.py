@@ -86,6 +86,8 @@ def compile(filename, package = None, force = False, no_build_files = False):
             ui.msg(u'Modified: %s' % modified_file)
 
         ui.msg(u'Compiled: %s' % filename)
+    else:
+        ui.msg(u'Not Found: %s' % filename)
 
     if not no_build_files:
         buildfiles(package = package)
