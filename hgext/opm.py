@@ -100,7 +100,7 @@ def pull(ui, repo, *args, **kwargs):
         mercurial.commands.pull(sub_repo.ui, sub_repo, *args, **kwargs)
 
 def reposetup(ui, repo):
-    ui.setconfig('hooks', 'incoming.autocompile', publish)
+    ui.setconfig('hooks', 'changegroup.autocompile', publish)
 
 def uisetup(ui):
     '''Initialize the extension.'''
