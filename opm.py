@@ -308,11 +308,11 @@ class StaticPackage():
 
         text = ''
         for file in files:
-            text += open(file, 'r').read()
+            text += open(file, 'rb').read()
 
         target_dir = os.path.dirname(output)
         if not os.path.exists(target_dir): os.makedirs(target_dir)
-        open(output, 'w').write(text)
+        open(output, 'wb').write(text)
 
     def compile(self, filename, force = False):
         filename = os.path.realpath(filename)
@@ -471,9 +471,10 @@ class StaticPackage():
 
 
     def write_file(self, path, txt):
-        cssfile = open(path, "w")
+        cssfile = open(path, 'wb')
         cssfile.write(txt)
         cssfile.close()
+
     def joinpath(self, path1, path2):
         return os.path.realpath(os.path.join(path1, path2))
 
@@ -606,14 +607,14 @@ class StaticPackage():
 
         if self.url:
             package_file_path = os.path.join(self.publish_path, PACKAGE_FILENAME)
-            open(package_file_path, 'w').write(self.url)
+            open(package_file_path, 'wb').write(self.url)
 
         source_path = os.path.join(self.publish_path, SOURCE_FILENAME)
         source_dir = os.path.dirname(source_path)
         if not os.path.exists(source_dir):
             os.makedirs(source_dir)
 
-        open(source_path, 'w').write(self.root)
+        open(source_path, 'wb').write(self.root)
 
     @staticmethod
     def init(root_path):
@@ -628,7 +629,7 @@ class StaticPackage():
         if not os.path.exists(root_path):
             os.makedirs(root_path)
 
-        open(config_path, 'w').write(
+        open(config_path, 'wb').write(
             '<package>\n\t<library dir="lib">\n\t</library>\n\t<source dir="src">\n\t</source>\n\t<resource dir="res">\n\t</resource>\n</package>'
         )
 
@@ -831,7 +832,7 @@ class Workspace():
 
     def rebuild_package(self):
         # 不要在fastcgi中rebuild_package，因为没有文件锁，会出问题，给出提示即可。
-        packages_file = open(self.packages_file_path, 'w')
+        packages_file = open(self.packages_file_path, 'wb')
         packages = self.local_packages.keys()
         packages.sort()
         for local_path in packages:
