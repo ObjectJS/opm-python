@@ -101,6 +101,25 @@ class StaticPackage():
         if self.publish_path:
             self.listener = FileListener(os.path.join(self.publish_path, INFO_PATH))
 
+    def generate_module_file(self, module):
+        source_file = self.joinpath(self.source_path, 'node_modules/' + module)
+        txt = open(source_file, 'rb').read()
+
+        id = urljoin(self.module_base, module)
+        dependencies = []
+
+        matches = re.finditer(r'require\([\'\"](.*)[\'\"]\)', txt, re.M | re.VERBOSE)
+        for match in matches:
+           dependencies.append(match.group(1))
+
+        dependencies = ', '.join(dependencies)
+
+        if dependencies:
+            dependencies = '\'' + dependencies + '\', '
+
+        txt = u';object.define(\'%s\', %sfunction(require, exports, module) {\n%s\n});\n' % (id, dependencies, txt)
+        return txt
+
     def get_package(self, root_path):
         u''' 从缓存中获取package引用，如果没有则生成新的并加入缓存 '''
         package = self.combine_cache.get(root_path)
@@ -308,7 +327,14 @@ class StaticPackage():
 
         text = ''
         for file in files:
-            text += open(file, 'rb').read()
+
+            # 合并时从modules目录中找node_modules目录中的文件
+            if file.startswith(os.path.join(self.source_path, 'node_modules')):
+                module = file[len(os.path.join(self.source_path, 'node_modules')) + 1:]
+                text += self.generate_module_file(module)
+
+            else:
+                text += open(file, 'rb').read()
 
         target_dir = os.path.dirname(output)
         if not os.path.exists(target_dir): os.makedirs(target_dir)
@@ -533,6 +559,8 @@ class StaticPackage():
         if self.serverRoot and not self.serverRoot.endswith('/'):
             self.serverRoot = self.serverRoot + '/'
 
+        self.module_base = xmlConfig.find('source').get('module-base')
+
         combinesXML = xmlConfig.findall('source/combine')
         if combinesXML:
             for combine in combinesXML:
@@ -540,7 +568,11 @@ class StaticPackage():
                 includesXML = combine.findall('include')
                 includes = []
                 for include in includesXML:
-                    includePath = self.joinpath(self.source_path, include.get('path'))
+                    if include.get('module'):
+                        includePath = self.joinpath(self.source_path, 'node_modules/' + include.get('module'))
+                    else:
+                        includePath = self.joinpath(self.source_path, include.get('path'))
+
                     includes.append(includePath)
 
                 self.combines[key] = includes
