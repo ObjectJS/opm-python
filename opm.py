@@ -62,6 +62,37 @@ class ConfigError(Exception):
     def __init__(self, path):
         self.path = path
 
+class File():
+    def __init__(self, path):
+        self.path = path
+
+    def read(self):
+        return open(self.path, 'rb').read()
+
+class ModuleFile(File):
+    def __init__(self, path, base):
+        self.path = path
+        self.base = base;
+
+    def read(self):
+        module = path2uri(self.path[self.path.index('node_modules') + 13:])
+        txt = open(self.path, 'rb').read()
+
+        id = urljoin(self.base, module)
+        dependencies = []
+
+        matches = re.finditer(r'require\([\'\"](.*)[\'\"]\)', txt, re.M | re.VERBOSE)
+        for match in matches:
+           dependencies.append(match.group(1))
+
+        dependencies = ', '.join(dependencies)
+
+        if dependencies:
+            dependencies = '\'' + dependencies + '\', '
+
+        txt = ';object.define(\'%s\', %sfunction(require, exports, module) {\n%s\n});\n' % (id, dependencies, txt)
+        return txt
+
 class StaticPackage():
     u''' 静态编译库 '''
 
@@ -100,25 +131,6 @@ class StaticPackage():
         # 不是所有的库都需要有publish_path
         if self.publish_path:
             self.listener = FileListener(os.path.join(self.publish_path, INFO_PATH))
-
-    def generate_module_file(self, module):
-        source_file = self.joinpath(self.source_path, 'node_modules/' + module)
-        txt = open(source_file, 'rb').read()
-
-        id = urljoin(self.module_base, module)
-        dependencies = []
-
-        matches = re.finditer(r'require\([\'\"](.*)[\'\"]\)', txt, re.M | re.VERBOSE)
-        for match in matches:
-           dependencies.append(match.group(1))
-
-        dependencies = ', '.join(dependencies)
-
-        if dependencies:
-            dependencies = '\'' + dependencies + '\', '
-
-        txt = u';object.define(\'%s\', %sfunction(require, exports, module) {\n%s\n});\n' % (id, dependencies, txt)
-        return txt
 
     def get_package(self, root_path):
         u''' 从缓存中获取package引用，如果没有则生成新的并加入缓存 '''
@@ -244,7 +256,7 @@ class StaticPackage():
 
         elif filetype == '.js' and (source in self.combines.keys() or os.path.exists(source)):
             if all:
-                return self.get_combine_files(source)
+                return [file.path for file in self.get_combine_files(source)]
             else:
                 return self.combines[source]
 
@@ -289,13 +301,13 @@ class StaticPackage():
     def get_combine_files(self, path):
         u'''
         @param path 执行合并的文件
-        @return relation_files 数组用来存储此文件相关的最小颗粒度的实体文件（非合并出来的文件）
+        @return combine_files 数组用来存储此文件相关的最小颗粒度的实体文件（非合并出来的文件）
         '''
 
-        relation_files = [] # 存储整个合并过程中最小粒度的文件，最终会按照顺序进行合并
+        combine_files = [] # 存储整个合并过程中最小粒度的文件，最终会按照顺序进行合并
 
         if path not in self.combines.keys():
-            return [path]
+            return [File(path)]
 
         for include in self.combines[path]:
 
@@ -314,27 +326,23 @@ class StaticPackage():
             # 一个合并出来的文件
             if include in package.combines.keys():
                 rFiles = package.get_combine_files(include)
-                relation_files.extend(rFiles)
+                combine_files.extend(rFiles)
+
+            elif include.find('node_modules') != -1:
+                combine_files.append(ModuleFile(include, self.module_base))
 
             # 一个最小粒度的文件
             else:
-                relation_files.append(include)
+                combine_files.append(File(include))
 
-        return relation_files
+        return combine_files
 
     def combine(self, output, files):
         u''' 将files文件列表合并成一个文件并写入到output '''
 
         text = ''
         for file in files:
-
-            # 合并时从modules目录中找node_modules目录中的文件
-            if file.startswith(os.path.join(self.source_path, 'node_modules')):
-                module = file[len(os.path.join(self.source_path, 'node_modules')) + 1:]
-                text += self.generate_module_file(module)
-
-            else:
-                text += open(file, 'rb').read()
+            text += file.read()
 
         target_dir = os.path.dirname(output)
         if not os.path.exists(target_dir): os.makedirs(target_dir)
@@ -360,7 +368,8 @@ class StaticPackage():
         filetype = os.path.splitext(filename)[1]
         if filetype == '.js':
             if force or len(modified):
-                self.combine(filename, relation_files)
+                combine_files = self.get_combine_files(source)
+                self.combine(filename, combine_files)
 
             return modified, not_exists
 
@@ -559,7 +568,7 @@ class StaticPackage():
         if self.serverRoot and not self.serverRoot.endswith('/'):
             self.serverRoot = self.serverRoot + '/'
 
-        self.module_base = xmlConfig.find('source').get('module-base')
+        self.module_base = xmlConfig.get('module-base')
 
         combinesXML = xmlConfig.findall('source/combine')
         if combinesXML:
