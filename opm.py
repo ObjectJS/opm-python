@@ -70,13 +70,22 @@ class File():
         return open(self.path, 'rb').read()
 
 class ModuleFile(File):
+
+    text_exts = ['.mustache', '.tpl', '.html']
+
     def __init__(self, path, base):
         self.path = path
         self.base = base;
 
     def read(self):
+
         module = path2uri(self.path[self.path.index('node_modules') + 13:])
-        txt = open(self.path, 'rb').read()
+
+        if os.path.splitext(self.path)[1] in self.text_exts:
+            txt = open(self.path, 'rb').read()
+            txt = 'return "%s"' % txt.replace('"', '\\"').replace('\n', '\\\n');
+        else:
+            txt = open(self.path, 'rb').read()
 
         id = urljoin(self.base, module)
         dependencies = []
