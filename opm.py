@@ -72,6 +72,7 @@ class File():
 class ModuleFile(File):
 
     text_exts = ['.mustache', '.tpl', '.html']
+    json_exts = ['.json']
 
     def __init__(self, path, base):
         self.path = path
@@ -84,6 +85,9 @@ class ModuleFile(File):
         if os.path.splitext(self.path)[1] in self.text_exts:
             txt = open(self.path, 'rb').read()
             txt = 'return "%s"' % txt.replace('"', '\\"').replace('\n', '\\\n');
+        elif os.path.splitext(self.path)[1] in self.json_exts:
+            txt = open(self.path, 'rb').read()
+            txt = 'return %s' % txt
         else:
             txt = open(self.path, 'rb').read()
 
