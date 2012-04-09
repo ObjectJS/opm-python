@@ -10,6 +10,8 @@ for p in os.environ.get('PYTHONPATH', '').split(';'):
 # mercurial默认开始demandimport，替换了默认的import动作，将所有import模块变成延时加载，调用时才load
 # 因此cssutils中的一个cssutils.codec模块没有被执行导致出错
 # 使用__import__避免import带来的demandimport
+from mercurial import demandimport
+demandimport.disable()
 opm = __import__('opm')
 import commands
 
@@ -60,12 +62,12 @@ def publish(ui, repo, source = '', node = 'default', **opts):
     node_branch = node.branch()
 
     # 不是需要被编译的分支
-    if node_branch != publish_branch:
-        ui.warn('%s: ignore branch %s\n' % (repo.root, node_branch))
-        return
+    # if node_branch != publish_branch:
+    #     ui.warn('%s: ignore branch %s\n' % (repo.root, node_branch))
+    #     return
 
-    # update当前库
-    mergemod.update(repo, None, False, False, None)
+    # update到需要编译的分支
+    mergemod.update(repo, publish_branch, False, False, None)
 
     # 生成commitlog
     commitlog_path = os.path.realpath(os.path.join(repo.root, './commitlog.txt'))
