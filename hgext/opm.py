@@ -11,6 +11,11 @@ for p in os.environ.get('PYTHONPATH', '').split(';'):
 # 因此cssutils中的一个cssutils.codec模块没有被执行导致出错
 # 使用__import__避免import带来的demandimport
 opm = __import__('opm')
+
+# 尝试解决demandimport带来的css编译问题
+import cssutils.codec
+cssutils.codec.__file__
+
 import commands
 
 from mercurial import hg
@@ -60,12 +65,13 @@ def publish(ui, repo, source = '', node = 'default', **opts):
     node_branch = node.branch()
 
     # 不是需要被编译的分支
-    if node_branch != publish_branch:
-        ui.warn('%s: ignore branch %s\n' % (repo.root, node_branch))
-        return
+    # 不判断分支，因为通过changegroup hook触发编译时，获取到的分支信息有可能不是default，导致不编译
+    #if node_branch != publish_branch:
+        #ui.warn('%s: ignore branch %s\n' % (repo.root, node_branch))
+        #return
 
     # update当前库
-    mergemod.update(repo, None, False, False, None)
+    mergemod.update(repo, publish_branch, False, False, None)
 
     # 生成commitlog
     commitlog_path = os.path.realpath(os.path.join(repo.root, './commitlog.txt'))
