@@ -14,10 +14,6 @@ from mercurial import demandimport
 demandimport.disable()
 opm = __import__('opm')
 
-# 尝试解决demandimport带来的css编译问题
-import cssutils.codec
-cssutils.codec.__file__
-
 import commands
 
 from mercurial import hg
